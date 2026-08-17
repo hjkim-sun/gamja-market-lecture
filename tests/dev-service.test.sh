@@ -234,15 +234,17 @@ fi
 
 write_fake_commands
 
-# With no DEV_STATE_DIR override, PID state belongs below Git's common
-# directory, rather than below the linked worktree that happens to invoke the
-# script.  The ordinary helpers below still set DEV_STATE_DIR, preserving
-# explicit-override coverage for isolated command tests.
+# With no DEV_STATE_DIR override, PID state belongs below the repository root
+# that contains Git's common directory, rather than below the linked worktree
+# that happens to invoke the script.  The ordinary helpers below still set
+# DEV_STATE_DIR, preserving explicit-override coverage for isolated command
+# tests.
 if ! create_default_state_worktree; then
   fail "default-state fixture must create an isolated linked Git worktree"
 else
   DEFAULT_GIT_COMMON_DIR="$(git -C "$DEFAULT_WORKTREE" rev-parse --path-format=absolute --git-common-dir)"
-  DEFAULT_STATE_DIR="$DEFAULT_GIT_COMMON_DIR/.runtime/dev"
+  DEFAULT_REPOSITORY_ROOT="$(dirname "$DEFAULT_GIT_COMMON_DIR")"
+  DEFAULT_STATE_DIR="$DEFAULT_REPOSITORY_ROOT/.runtime/dev"
   DEFAULT_BACKEND_PID_FILE="$DEFAULT_STATE_DIR/backend.pid"
   WORKTREE_BACKEND_PID_FILE="$DEFAULT_WORKTREE/.runtime/dev/backend.pid"
 
