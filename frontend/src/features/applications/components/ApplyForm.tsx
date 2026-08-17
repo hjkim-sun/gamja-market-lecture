@@ -7,6 +7,7 @@ import {
   parseApplicationForm,
   type ApplicationFormErrors,
 } from "@/features/applications/lib/application-input";
+import ImagePicker from "@/features/uploads/components/ImagePicker";
 
 export default function ApplyForm({ requestId }: { requestId: string }) {
   const [pending, setPending] = useState(false);
@@ -102,6 +103,8 @@ export default function ApplyForm({ requestId }: { requestId: string }) {
         />
         {fieldErrors.message && <p className="text-xs text-red-600">{fieldErrors.message}</p>}
       </div>
+
+      <ImagePicker />
 
       <button
         type="submit"

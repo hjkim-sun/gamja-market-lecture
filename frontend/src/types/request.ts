@@ -1,5 +1,6 @@
 import type { RequestCategory } from "@/features/requests/lib/request-input";
 import type { ApplicationStatus } from "@/types/application";
+import type { UploadedImage } from "@/types/upload";
 
 export type PurchaseRequest = {
   id: string;
@@ -10,6 +11,11 @@ export type PurchaseRequest = {
   createdAt: string;
   description: string;
   isOwner: boolean;
+  /**
+   * Attached reference photos, public-URL, oldest slot (`sortOrder: 0`) first. Absent from
+   * older/mocked payloads that predate photo uploads — always read as `images ?? []`.
+   */
+  images?: UploadedImage[];
   /**
    * The signed-in viewer's own application status for this request, or `null` when the
    * viewer has not applied. `undefined` for anonymous viewers and for the owner, and
@@ -40,4 +46,5 @@ export type MyPurchaseRequest = {
   createdAt: string;
   description: string;
   applicationCount: number;
+  images?: UploadedImage[];
 };

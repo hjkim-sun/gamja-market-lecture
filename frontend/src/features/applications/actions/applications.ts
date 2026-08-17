@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { parseApplicationForm, type ApplicationFormErrors } from "@/features/applications/lib/application-input";
+import { collectImageFiles } from "@/features/uploads/lib/image-input";
+import { uploadImages } from "@/features/uploads/data/upload-images";
 import { getSameOriginRequest } from "@/lib/api/same-origin-request";
 import { logServerError } from "@/lib/logging/server";
 import type { ApplicationDecision, DecideApplicationResult } from "@/types/application";
@@ -75,7 +77,23 @@ export async function applyToRequest(
     return { ok: false, message: await readErrorMessage(response, APPLY_FAILED_MESSAGE) };
   }
 
-  redirect(`/requests/${requestId}`);
+  const created = (await response.json()) as { id: string };
+
+  // Photo upload is a non-destructive follow-up call (docs/specs/14-...design.md §1/§7.2):
+  // the application is already committed, so a failed upload never blocks the redirect below.
+  const imageFiles = collectImageFiles(formData);
+  let imageUploadFailed = false;
+  if (imageFiles.length > 0) {
+    try {
+      const uploadResult = await uploadImages(`/api/applications/${created.id}/images`, imageFiles, cookie);
+      imageUploadFailed = !uploadResult.ok;
+    } catch (error) {
+      await logServerError(error, { pathname: `/api/applications/${created.id}/images` });
+      imageUploadFailed = true;
+    }
+  }
+
+  redirect(imageUploadFailed ? `/requests/${requestId}?imageUploadFailed=1` : `/requests/${requestId}`);
 }
 
 /** Accepts or rejects a seller application via `PATCH /api/applications/{id}`. */
