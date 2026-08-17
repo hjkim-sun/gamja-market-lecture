@@ -1,0 +1,37 @@
+"""Purchase-request use cases and authenticated ownership assignment."""
+
+from __future__ import annotations
+
+from uuid import UUID, uuid4
+
+from app.repositories.requests import PurchaseRequest, PurchaseRequestRepository
+from app.schemas.requests import CreateRequestInput
+from app.services.auth import AuthService
+
+
+class PurchaseRequestService:
+    def __init__(
+        self,
+        requests: PurchaseRequestRepository,
+        auth: AuthService,
+    ) -> None:
+        self._requests = requests
+        self._auth = auth
+
+    def create(self, request: CreateRequestInput, session_token: str | None) -> PurchaseRequest:
+        user = self._auth.me(session_token)
+        return self._requests.create(
+            request_id=uuid4(),
+            requester_id=user.id,
+            title=request.title,
+            category=request.category,
+            desired_price=request.desired_price,
+            description=request.description,
+            status="모집중",
+        )
+
+    def list(self) -> list[PurchaseRequest]:
+        return self._requests.list()
+
+    def get(self, request_id: UUID) -> PurchaseRequest | None:
+        return self._requests.get_by_id(request_id)
