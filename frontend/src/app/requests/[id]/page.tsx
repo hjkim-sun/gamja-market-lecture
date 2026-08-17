@@ -5,11 +5,9 @@ import StatusBadge from "@/features/requests/components/StatusBadge";
 import { getRequestById } from "@/features/requests/data/requests-api";
 import type { PurchaseRequest } from "@/types/request";
 
-export async function generateMetadata(props: PageProps<"/requests/[id]">) {
-  const { id } = await props.params;
-  const request = await getRequestById(id);
+export function generateMetadata() {
   return {
-    title: request ? `${request.title} — 감자마켓` : "구매요청을 찾을 수 없어요 — 감자마켓",
+    title: "구매요청 상세 — 감자마켓",
   };
 }
 
