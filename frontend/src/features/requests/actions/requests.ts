@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { parseRequestForm, type RequestFormErrors } from "@/features/requests/lib/request-input";
-import { getSameOriginRequest } from "@/features/requests/lib/same-origin";
+import { getSameOriginRequest } from "@/lib/api/same-origin-request";
 import { logServerError } from "@/lib/logging/server";
 
 export type CreateRequestState =

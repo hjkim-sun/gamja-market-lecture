@@ -111,6 +111,14 @@ export default function Header() {
           <span className="gm-header-separator" aria-hidden="true" />
           {signedIn ? (
             <div className="gm-account-wrap">
+              <Link
+                href="/chats"
+                onClick={() => { setMobileOpen(false); setAccountOpen(false); }}
+                className="gm-header-link"
+                aria-current={currentPath(pathname, "/chats") ? "page" : undefined}
+              >
+                채팅
+              </Link>
               <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>내 계정</button>
               {accountOpen && <div className="gm-account-menu"><button type="button" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button></div>}
             </div>
@@ -141,6 +149,14 @@ export default function Header() {
               <span className="gm-mobile-divider" aria-hidden="true" />
               {signedIn ? (
                 <>
+                  <Link
+                    href="/chats"
+                    onClick={() => setMobileOpen(false)}
+                    className="gm-mobile-link"
+                    aria-current={currentPath(pathname, "/chats") ? "page" : undefined}
+                  >
+                    채팅
+                  </Link>
                   <span className="gm-mobile-account">내 계정</span>
                   <button type="button" className="gm-mobile-logout" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>
                 </>

@@ -7,11 +7,16 @@ function firstForwardedValue(value: string | null) {
 }
 
 /**
- * Builds an absolute same-origin URL for the `/api/requests` family of endpoints
- * from the incoming request's headers, mirroring the auth feature's pattern.
+ * Builds an absolute same-origin URL for a backend-proxied `/api/*` route from the
+ * incoming request's headers. Shared by every feature (requests, applications, chats,
+ * auth) so the origin-resolution/hardening logic lives in exactly one place.
  */
 export async function getSameOriginRequest(
-  pathname: `/api/requests${string}` | `/api/auth/${string}`,
+  pathname:
+    | `/api/requests${string}`
+    | `/api/applications${string}`
+    | `/api/chats${string}`
+    | `/api/auth/${string}`,
 ) {
   const requestHeaders = await headers();
   const host = firstForwardedValue(requestHeaders.get("x-forwarded-host"))

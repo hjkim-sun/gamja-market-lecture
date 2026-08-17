@@ -1,5 +1,5 @@
 import type { PurchaseRequest } from "@/types/request";
-import { getSameOriginRequest } from "@/features/requests/lib/same-origin";
+import { getSameOriginRequest } from "@/lib/api/same-origin-request";
 
 /** Fetches the full purchase-request list from the backend. Returns `[]` on any failure. */
 export async function getRequests(): Promise<PurchaseRequest[]> {

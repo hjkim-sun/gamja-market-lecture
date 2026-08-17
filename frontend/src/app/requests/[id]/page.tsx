@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/features/requests/components/StatusBadge";
 import { getRequestById } from "@/features/requests/data/requests-api";
+import type { PurchaseRequest } from "@/types/request";
 
 export async function generateMetadata(props: PageProps<"/requests/[id]">) {
   const { id } = await props.params;
@@ -9,6 +11,98 @@ export async function generateMetadata(props: PageProps<"/requests/[id]">) {
   return {
     title: request ? `${request.title} — 감자마켓` : "구매요청을 찾을 수 없어요 — 감자마켓",
   };
+}
+
+const CTA_BUTTON_CLASS =
+  "mt-8 block w-full rounded-full bg-[#d9822b] px-6 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-[#c46f1d] sm:text-base";
+const DISABLED_BUTTON_CLASS =
+  "mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base";
+const SECONDARY_LINK_CLASS =
+  "mt-3 block w-full rounded-full border border-[#d9822b] px-6 py-3 text-center text-sm font-bold text-[#d9822b] transition hover:bg-amber-50 sm:text-base";
+
+/** Renders the owner/applicant-specific action panel described in docs/specs/11 §5.1. */
+function ApplicationAction({ request }: { request: PurchaseRequest }): ReactNode {
+  if (request.isOwner) {
+    if (request.status === "모집중") {
+      const applicationCount = request.applicationCount ?? 0;
+      return (
+        <>
+          <button type="button" disabled className={DISABLED_BUTTON_CLASS}>
+            내가 등록한 요청이에요
+          </button>
+          {applicationCount > 0 && (
+            <Link href={`/requests/${request.id}/applications`} className={SECONDARY_LINK_CLASS}>
+              지원자 보기 ({applicationCount})
+            </Link>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <p className="mt-8 text-center text-sm font-semibold text-[#6b5540]">
+          매칭된 판매자와 대화 중이에요
+        </p>
+        <Link href={`/chats/${request.chatThreadId}`} className={CTA_BUTTON_CLASS}>
+          채팅으로 이동
+        </Link>
+      </>
+    );
+  }
+
+  const viewerApplicationStatus = request.viewerApplicationStatus;
+
+  if (viewerApplicationStatus === undefined) {
+    return (
+      <button
+        type="button"
+        disabled
+        title="로그인하면 이 요청에 지원할 수 있어요"
+        className={DISABLED_BUTTON_CLASS}
+      >
+        이 요청에 지원하기
+      </button>
+    );
+  }
+
+  if (viewerApplicationStatus === "대기중") {
+    return (
+      <button type="button" disabled className={DISABLED_BUTTON_CLASS}>
+        지원 완료 · 답변 대기중
+      </button>
+    );
+  }
+
+  if (viewerApplicationStatus === "거절됨") {
+    return (
+      <button type="button" disabled className={DISABLED_BUTTON_CLASS}>
+        이 지원은 거절되었어요
+      </button>
+    );
+  }
+
+  if (viewerApplicationStatus === "수락됨") {
+    return (
+      <Link href={`/chats/${request.chatThreadId}`} className={CTA_BUTTON_CLASS}>
+        채팅으로 이동
+      </Link>
+    );
+  }
+
+  if (request.status !== "모집중") {
+    return (
+      <button type="button" disabled className={DISABLED_BUTTON_CLASS}>
+        이미 매칭이 완료된 요청이에요
+      </button>
+    );
+  }
+
+  return (
+    <Link href={`/requests/${request.id}/apply`} className={CTA_BUTTON_CLASS}>
+      이 요청에 지원하기
+    </Link>
+  );
 }
 
 export default async function RequestDetailPage(
@@ -56,23 +150,7 @@ export default async function RequestDetailPage(
           </p>
         </div>
 
-        {request.isOwner ? (
-          <button
-            type="button"
-            disabled
-            className="mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base"
-          >
-            내가 등록한 요청이에요
-          </button>
-        ) : (
-          <button
-            type="button"
-            title="판매자 지원 기능은 이후 단계에서 열려요"
-            className="mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base"
-          >
-            이 요청에 지원하기
-          </button>
-        )}
+        <ApplicationAction request={request} />
       </div>
     </div>
   );
