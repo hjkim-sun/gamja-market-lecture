@@ -193,6 +193,35 @@ run_dev_with_backend_env_file() {
     "$DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
 }
 
+# The production default must survive switching Git worktrees.  Exercise that
+# behavior in an isolated repository so this test never touches this checkout's
+# shared runtime state.
+DEFAULT_REPO="$TEST_TMP/default-state-repo"
+DEFAULT_WORKTREE="$TEST_TMP/default-state-worktree"
+DEFAULT_DEV_SCRIPT="$DEFAULT_WORKTREE/scripts/dev.sh"
+
+create_default_state_worktree() {
+  mkdir -p "$DEFAULT_REPO/backend" "$DEFAULT_REPO/frontend" "$DEFAULT_REPO/scripts"
+  ln -s "$DEV_SCRIPT" "$DEFAULT_REPO/scripts/dev.sh"
+  : > "$DEFAULT_REPO/README.md"
+  : > "$DEFAULT_REPO/backend/.gitkeep"
+  : > "$DEFAULT_REPO/frontend/.gitkeep"
+
+  git init -q "$DEFAULT_REPO" || return 1
+  git -C "$DEFAULT_REPO" config user.email 'dev-service-test@example.invalid' || return 1
+  git -C "$DEFAULT_REPO" config user.name 'Dev Service Test' || return 1
+  git -C "$DEFAULT_REPO" add README.md backend/.gitkeep frontend/.gitkeep scripts/dev.sh || return 1
+  git -C "$DEFAULT_REPO" commit -qm 'fixture' || return 1
+  git -C "$DEFAULT_REPO" worktree add --detach -q "$DEFAULT_WORKTREE" || return 1
+}
+
+run_dev_with_default_state_dir() {
+  PATH="$FAKE_BIN:$PATH" \
+    DEV_TEST_LOG_DIR="$LOG_DIR" \
+    DEV_TEST_PORT_HOLDER_DIR="$DEFAULT_STATE_DIR" \
+    "$DEFAULT_DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
+}
+
 if [[ ! -f "$DEV_SCRIPT" ]]; then
   fail "missing required service controller: scripts/dev.sh"
   printf '\n%d test assertion(s) failed.\n' "$FAILURES" >&2
@@ -204,6 +233,36 @@ if [[ ! -x "$DEV_SCRIPT" ]]; then
 fi
 
 write_fake_commands
+
+# With no DEV_STATE_DIR override, PID state belongs below Git's common
+# directory, rather than below the linked worktree that happens to invoke the
+# script.  The ordinary helpers below still set DEV_STATE_DIR, preserving
+# explicit-override coverage for isolated command tests.
+if ! create_default_state_worktree; then
+  fail "default-state fixture must create an isolated linked Git worktree"
+else
+  DEFAULT_GIT_COMMON_DIR="$(git -C "$DEFAULT_WORKTREE" rev-parse --path-format=absolute --git-common-dir)"
+  DEFAULT_STATE_DIR="$DEFAULT_GIT_COMMON_DIR/.runtime/dev"
+  DEFAULT_BACKEND_PID_FILE="$DEFAULT_STATE_DIR/backend.pid"
+  WORKTREE_BACKEND_PID_FILE="$DEFAULT_WORKTREE/.runtime/dev/backend.pid"
+
+  if ! run_dev_with_default_state_dir backend start; then
+    fail "backend start must succeed using the default shared state directory"
+  fi
+  assert_file "$DEFAULT_BACKEND_PID_FILE"
+  assert_not_file "$WORKTREE_BACKEND_PID_FILE"
+  if [[ -f "$DEFAULT_BACKEND_PID_FILE" ]]; then
+    DEFAULT_BACKEND_PID="$(<"$DEFAULT_BACKEND_PID_FILE")"
+    track_pid "$DEFAULT_BACKEND_PID"
+    assert_pid_running "$DEFAULT_BACKEND_PID" \
+      "default shared state must track the running backend PID"
+  fi
+  if ! run_dev_with_default_state_dir backend stop; then
+    fail "backend stop must use the default shared state directory"
+  fi
+  assert_not_file "$DEFAULT_BACKEND_PID_FILE"
+  assert_not_file "$WORKTREE_BACKEND_PID_FILE"
+fi
 
 # A backend start runs the documented Uvicorn command from backend/, writes its PID,
 # and leaves that tracked PID alive for a later stop/restart action.
