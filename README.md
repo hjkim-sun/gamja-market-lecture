@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 감자마켓
 
-## Getting Started
+구매자가 원하는 물건과 가격을 먼저 등록하고 판매자가 제안하는 구매자 중심 중고거래 서비스입니다.
 
-First, run the development server:
+## 프로젝트 구조
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```text
+frontend/  Next.js + TypeScript
+backend/   FastAPI + Supabase PostgreSQL
+docs/      기획, 설계, 과거 문서와 디자인 산출물
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 로컬 실행
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+프론트엔드:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Learn More
+백엔드:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd backend
+uv sync --extra dev
+uv run python -m app.server --reload
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+기본 포트는 `8000`이며, 다른 포트는 `uv run python -m app.server --reload --port 8001`처럼 지정합니다. 로컬 요청은 `backend/logs/access.log`, 서버 시작·포트 충돌 등의 오류는 `backend/logs/error.log`에서 확인합니다. `uvicorn app.main:app --reload` 직접 실행은 이 안전한 logging 설정을 적용하지 않으므로 지원하지 않습니다.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+검증 명령은 각 디렉터리의 README를 참고합니다.
 
-## Deploy on Vercel
+### 개발 서비스 제어
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+루트에서 두 서비스를 함께 관리하려면 다음 명령을 사용합니다.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+scripts/dev.sh <backend|frontend|all> <start|stop|restart>
+```
+
+상태 파일과 리디렉션된 출력은 추적하지 않는 `.runtime/dev/`에 저장됩니다. 서비스는 `nohup`과 `python3`의 새 세션으로 분리되어 명령을 실행한 터미널을 닫아도 계속 실행되며, 시작 전 포트 `8000`(backend)과 `3000`(frontend)의 다른 점유자를 확인해 점유자를 종료하지 않고 시작을 거부합니다.
