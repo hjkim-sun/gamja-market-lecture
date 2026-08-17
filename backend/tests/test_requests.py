@@ -1,9 +1,13 @@
 import asyncio
+import os
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.repositories.applications import PostgresApplicationRepository
+from app.repositories.chats import PostgresChatRepository
 
 
 def valid_payload() -> dict[str, object]:
@@ -172,3 +176,20 @@ def test_request_detail_identifies_only_the_authenticated_owner() -> None:
     assert anonymous_detail.json()["isOwner"] is False
     assert other_user_detail.status_code == 200
     assert other_user_detail.json()["isOwner"] is False
+
+
+@pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="requires the configured PostgreSQL database")
+def test_postgres_request_detail_support_queries_are_available() -> None:
+    """The authenticated detail path depends on both support-table lookups."""
+    database_url = os.environ["DATABASE_URL"]
+    request_id = uuid4()
+    viewer_id = uuid4()
+
+    application = PostgresApplicationRepository(database_url).get_by_request_and_seller(
+        request_id=request_id,
+        seller_id=viewer_id,
+    )
+    thread = PostgresChatRepository(database_url).get_by_application(uuid4())
+
+    assert application is None
+    assert thread is None
