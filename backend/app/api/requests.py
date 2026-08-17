@@ -4,21 +4,26 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, status
+from fastapi import APIRouter, Cookie, File, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.api.auth import _auth_service
 from app.api.dependencies import applications_service, requests_service
+from app.core.images import InvalidImageError
 from app.repositories.applications import AlreadyAppliedError, RequestNotOpenError
+from app.repositories.request_images import ImageLimitExceededError, RequestImage
 from app.schemas.requests import (
     ApiError,
     CreateRequestInput,
     MyPurchaseRequestOut,
     PurchaseRequestDetailOut,
     PurchaseRequestOut,
+    RequestImageOut,
+    RequestImageUploadOut,
 )
-from app.schemas.applications import ApplicationOut, CreateApplicationInput, OwnerApplicationOut
+from app.schemas.applications import ApplicationImageOut, ApplicationOut, CreateApplicationInput, OwnerApplicationOut
 from app.services.applications import CannotApplyToOwnRequestError, NotRequestOwnerError
+from app.services.requests import NotRequestOwnerError as NotPurchaseRequestOwnerError
 from app.services.auth import InvalidSessionError
 
 
@@ -61,9 +66,11 @@ def create_purchase_request(
 
 @requests_router.get("", response_model=list[PurchaseRequestOut])
 def list_purchase_requests() -> list[PurchaseRequestOut]:
+    requests = _requests_service.list()
+    images_by_request = _requests_service.images_for_requests([request.id for request in requests])
     return [
-        PurchaseRequestOut.model_validate(request, from_attributes=True)
-        for request in _requests_service.list()
+        _purchase_request_out(request, images_by_request.get(request.id, []))
+        for request in requests
     ]
 
 
@@ -79,9 +86,10 @@ def list_my_purchase_requests(
         rows = _requests_service.list_mine(gm_session)
     except InvalidSessionError:
         return _authentication_required_response()
+    images_by_request = _requests_service.images_for_requests([request.id for request, _ in rows])
     return [
         MyPurchaseRequestOut(
-            **PurchaseRequestOut.model_validate(request, from_attributes=True).model_dump(),
+            **_purchase_request_out(request, images_by_request.get(request.id, [])).model_dump(),
             application_count=count,
         )
         for request, count in rows
@@ -114,7 +122,8 @@ def get_purchase_request(
         is_owner = viewer.id == request.requester_id
 
     application, thread = applications_service.viewer_application(request_id=parsed_id, session_token=gm_session)
-    public_request = PurchaseRequestOut.model_validate(request, from_attributes=True)
+    images = _requests_service.images_for_requests([request.id]).get(request.id, [])
+    public_request = _purchase_request_out(request, images)
     return PurchaseRequestDetailOut(
         **public_request.model_dump(),
         is_owner=is_owner,
@@ -159,6 +168,44 @@ def create_application(
     return ApplicationOut.model_validate(application, from_attributes=True)
 
 
+@requests_router.post(
+    "/{request_id}/images",
+    response_model=RequestImageUploadOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"model": ApiError},
+        status.HTTP_401_UNAUTHORIZED: {"model": ApiError},
+        status.HTTP_403_FORBIDDEN: {"model": ApiError},
+        status.HTTP_404_NOT_FOUND: {"model": ApiError},
+        status.HTTP_409_CONFLICT: {"model": ApiError},
+    },
+)
+def attach_request_images(
+    request_id: str,
+    images: list[UploadFile] = File(default=[]),
+    gm_session: str | None = Cookie(default=None),
+) -> RequestImageUploadOut | JSONResponse:
+    try:
+        parsed_id = UUID(request_id)
+    except ValueError:
+        return _not_found_response()
+    try:
+        created = _requests_service.attach_images(request_id=parsed_id, uploads=images, session_token=gm_session)
+    except InvalidSessionError:
+        return _authentication_required_response()
+    except LookupError:
+        return _not_found_response()
+    except NotPurchaseRequestOwnerError:
+        return _error_response(status.HTTP_403_FORBIDDEN, "not_request_owner", "요청 작성자만 사진을 추가할 수 있어요.")
+    except ValueError:
+        return _error_response(status.HTTP_400_BAD_REQUEST, "no_files", "사진을 하나 이상 선택해주세요.")
+    except ImageLimitExceededError:
+        return _error_response(status.HTTP_409_CONFLICT, "image_limit_exceeded", "사진은 최대 5장까지 추가할 수 있어요.")
+    except InvalidImageError:
+        return _error_response(status.HTTP_400_BAD_REQUEST, "invalid_image", "이미지 파일을 확인해주세요.")
+    return RequestImageUploadOut(images=[_request_image_out(image) for image in created])
+
+
 @requests_router.get(
     "/{request_id}/applications",
     response_model=list[OwnerApplicationOut],
@@ -184,6 +231,7 @@ def list_request_applications(
         return _not_found_response()
     except NotRequestOwnerError:
         return _error_response(status.HTTP_403_FORBIDDEN, "not_request_owner", "요청 작성자만 지원자를 볼 수 있어요.")
+    images_by_application = applications_service.images_for_applications([application.id for application, _ in applications])
     return [
         OwnerApplicationOut(
             id=application.id,
@@ -192,6 +240,7 @@ def list_request_applications(
             message=application.message,
             status=application.status,
             created_at=application.created_at,
+            images=[_application_image_out(image) for image in images_by_application.get(application.id, [])],
         )
         for application, seller_name in applications
     ]
@@ -203,3 +252,22 @@ def _authentication_required_response() -> JSONResponse:
 
 def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"code": code, "message": message})
+
+
+def _request_image_out(image: RequestImage) -> RequestImageOut:
+    return RequestImageOut(id=image.id, url=_requests_service.public_image_url(image), sort_order=image.sort_order)
+
+
+def _purchase_request_out(request: object, images: list[RequestImage]) -> PurchaseRequestOut:
+    return PurchaseRequestOut(
+        **PurchaseRequestOut.model_validate(request, from_attributes=True).model_dump(exclude={"images"}),
+        images=[_request_image_out(image) for image in images],
+    )
+
+
+def _application_image_out(image: object) -> ApplicationImageOut:
+    return ApplicationImageOut(
+        id=image.id,
+        url=applications_service.signed_image_url(image),
+        sort_order=image.sort_order,
+    )

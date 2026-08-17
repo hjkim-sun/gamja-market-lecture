@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
+from fastapi import UploadFile
+
+from app.core.images import sanitize_image
+from app.core.storage import ImageStorage
+from app.repositories.application_images import ApplicationImage, ApplicationImageRepository
+from app.repositories.request_images import ImageLimitExceededError
 from app.repositories.applications import (
     ApplicationAlreadyDecidedError,
     ApplicationRepository,
@@ -27,6 +33,10 @@ class NotRequestOwnerError(Exception):
     pass
 
 
+class NotApplicationOwnerError(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class AcceptedApplication:
     application: RequestApplication
@@ -41,12 +51,16 @@ class ApplicationService:
         chats: ChatRepository,
         users: UserRepository,
         auth: AuthService,
+        images: ApplicationImageRepository,
+        storage: ImageStorage,
     ) -> None:
         self._applications = applications
         self._requests = requests
         self._chats = chats
         self._users = users
         self._auth = auth
+        self._images = images
+        self._storage = storage
 
     def create(self, *, request_id: UUID, payload: CreateApplicationInput, session_token: str | None) -> RequestApplication:
         seller = self._auth.me(session_token)
@@ -98,6 +112,30 @@ class ApplicationService:
             return None, None
         application = self._applications.get_by_request_and_seller(request_id=request_id, seller_id=viewer.id)
         return application, self._chats.get_by_application(application.id) if application else None
+
+    def attach_images(self, *, application_id: UUID, uploads: list[UploadFile], session_token: str | None) -> list[ApplicationImage]:
+        seller = self._auth.me(session_token)
+        application = self._application_or_raise(application_id)
+        if application.seller_id != seller.id:
+            raise NotApplicationOwnerError
+        if not uploads:
+            raise ValueError("no_files")
+        if len(uploads) > 5:
+            raise ImageLimitExceededError
+        sanitized = [sanitize_image(upload.file.read()) for upload in uploads]
+        pending: list[tuple[UUID, str]] = []
+        for content, content_type, extension in sanitized:
+            image_id = uuid4()
+            path = f"{application_id}/{image_id}.{extension}"
+            self._storage.upload(bucket="application-images", path=path, content=content, content_type=content_type)
+            pending.append((image_id, path))
+        return self._images.insert_batch(application_id=application_id, images=pending)
+
+    def images_for_applications(self, application_ids: list[UUID]) -> dict[UUID, list[ApplicationImage]]:
+        return self._images.list_by_application_ids(application_ids)
+
+    def signed_image_url(self, image: ApplicationImage) -> str:
+        return self._storage.signed_url(bucket="application-images", path=image.storage_path)
 
     def _request_or_raise(self, request_id: UUID) -> PurchaseRequest:
         request = self._requests.get_by_id(request_id)
