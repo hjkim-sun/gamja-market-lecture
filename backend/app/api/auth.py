@@ -18,9 +18,11 @@ from app.services.auth import AuthService, InvalidCredentialsError, InvalidSessi
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 _auth_settings = read_auth_settings()
+_user_repository = create_user_repository()
+_session_repository = create_session_repository()
 _auth_service = AuthService(
-    create_user_repository(),
-    create_session_repository(),
+    _user_repository,
+    _session_repository,
     session_ttl=_auth_settings.session_ttl,
 )
 

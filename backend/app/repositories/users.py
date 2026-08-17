@@ -89,6 +89,11 @@ class InMemoryUserRepository:
                 None,
             )
 
+    def clear(self) -> None:
+        with self._lock:
+            self._users_by_normalized_email.clear()
+            self._users_by_display_name.clear()
+
 
 class PostgresUserRepository:
     """Supabase PostgreSQL repository; migration ownership stays outside the API."""

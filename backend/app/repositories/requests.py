@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from threading import Lock
 from typing import Protocol
@@ -40,6 +40,8 @@ class PurchaseRequestRepository(Protocol):
     def list(self) -> list[PurchaseRequest]: ...
 
     def get_by_id(self, request_id: UUID) -> PurchaseRequest | None: ...
+
+    def update_status(self, request_id: UUID, status: str) -> PurchaseRequest | None: ...
 
 
 class InMemoryPurchaseRequestRepository:
@@ -85,6 +87,19 @@ class InMemoryPurchaseRequestRepository:
     def get_by_id(self, request_id: UUID) -> PurchaseRequest | None:
         with self._lock:
             return self._requests_by_id.get(request_id)
+
+    def update_status(self, request_id: UUID, status: str) -> PurchaseRequest | None:
+        with self._lock:
+            request = self._requests_by_id.get(request_id)
+            if request is None:
+                return None
+            updated = replace(request, status=status)
+            self._requests_by_id[request_id] = updated
+            return updated
+
+    def clear(self) -> None:
+        with self._lock:
+            self._requests_by_id.clear()
 
 
 class PostgresPurchaseRequestRepository:
@@ -160,6 +175,24 @@ class PostgresPurchaseRequestRepository:
                     where id = %s
                     """,
                     (request_id,),
+                )
+                row = cursor.fetchone()
+        return PurchaseRequest(*row) if row is not None else None
+
+    def update_status(self, request_id: UUID, status: str) -> PurchaseRequest | None:
+        from psycopg import connect
+
+        with connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    update public.purchase_requests
+                    set status = %s
+                    where id = %s
+                    returning id, requester_id, title, category, desired_price,
+                              description, status, created_at
+                    """,
+                    (status, request_id),
                 )
                 row = cursor.fetchone()
         return PurchaseRequest(*row) if row is not None else None

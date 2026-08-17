@@ -57,6 +57,8 @@ class PurchaseRequestDetailOut(PurchaseRequestOut):
     """Public detail representation with viewer-specific ownership state."""
 
     is_owner: bool = Field(alias="isOwner")
+    viewer_application_status: str | None = Field(default=None, alias="viewerApplicationStatus")
+    viewer_chat_thread_id: UUID | None = Field(default=None, alias="viewerChatThreadId")
 
 
 class ApiError(BaseModel):

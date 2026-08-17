@@ -73,6 +73,10 @@ class InMemorySessionRepository:
             if session is not None and session.revoked_at is None:
                 self._sessions_by_hash[token_hash] = replace(session, revoked_at=revoked_at)
 
+    def clear(self) -> None:
+        with self._lock:
+            self._sessions_by_hash.clear()
+
 
 class PostgresSessionRepository:
     def __init__(self, database_url: str) -> None:
