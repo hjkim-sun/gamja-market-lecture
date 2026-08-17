@@ -16,10 +16,10 @@ function currentPath(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export default function Header() {
+export default function Header({ initialSignedIn = false }: { initialSignedIn?: boolean } = {}) {
   const pathname = usePathname();
   const router = useRouter();
-  const [signedIn, setSignedIn] = useState(false);
+  const [signedIn, setSignedIn] = useState(initialSignedIn);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);

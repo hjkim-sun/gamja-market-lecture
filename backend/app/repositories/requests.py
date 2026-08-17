@@ -39,6 +39,8 @@ class PurchaseRequestRepository(Protocol):
 
     def list(self) -> list[PurchaseRequest]: ...
 
+    def list_by_requester(self, requester_id: UUID) -> list[PurchaseRequest]: ...
+
     def get_by_id(self, request_id: UUID) -> PurchaseRequest | None: ...
 
     def update_status(self, request_id: UUID, status: str) -> PurchaseRequest | None: ...
@@ -80,6 +82,18 @@ class InMemoryPurchaseRequestRepository:
         with self._lock:
             return sorted(
                 self._requests_by_id.values(),
+                key=lambda request: request.created_at,
+                reverse=True,
+            )
+
+    def list_by_requester(self, requester_id: UUID) -> list[PurchaseRequest]:
+        with self._lock:
+            return sorted(
+                (
+                    request
+                    for request in self._requests_by_id.values()
+                    if request.requester_id == requester_id
+                ),
                 key=lambda request: request.created_at,
                 reverse=True,
             )
@@ -158,6 +172,24 @@ class PostgresPurchaseRequestRepository:
                     from public.purchase_requests
                     order by created_at desc
                     """
+                )
+                rows = cursor.fetchall()
+        return [PurchaseRequest(*row) for row in rows]
+
+    def list_by_requester(self, requester_id: UUID) -> list[PurchaseRequest]:
+        from psycopg import connect
+
+        with connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    select id, requester_id, title, category, desired_price,
+                           description, status, created_at
+                    from public.purchase_requests
+                    where requester_id = %s
+                    order by created_at desc
+                    """,
+                    (requester_id,),
                 )
                 rows = cursor.fetchall()
         return [PurchaseRequest(*row) for row in rows]

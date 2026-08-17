@@ -33,5 +33,9 @@ class PurchaseRequestService:
     def list(self) -> list[PurchaseRequest]:
         return self._requests.list()
 
+    def list_mine(self, session_token: str | None) -> list[PurchaseRequest]:
+        user = self._auth.me(session_token)
+        return self._requests.list_by_requester(user.id)
+
     def get(self, request_id: UUID) -> PurchaseRequest | None:
         return self._requests.get_by_id(request_id)

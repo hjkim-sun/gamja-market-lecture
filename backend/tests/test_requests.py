@@ -135,6 +135,65 @@ def test_create_requires_an_active_session_and_does_not_create_a_request() -> No
     assert after == before
 
 
+def test_mine_requires_a_valid_session() -> None:
+    async def get_without_and_with_revoked_session() -> tuple[object, object]:
+        without_session = await request("GET", "/api/requests/mine")
+
+        client = await authenticated_client()
+        try:
+            logout = await client.post("/api/auth/logout")
+            assert logout.status_code == 204
+            with_revoked_session = await client.get("/api/requests/mine")
+            return without_session, with_revoked_session
+        finally:
+            await client.aclose()
+
+    without_session, with_revoked_session = asyncio.run(get_without_and_with_revoked_session())
+
+    for response in (without_session, with_revoked_session):
+        assert response.status_code == 401
+        assert response.json() == {
+            "code": "authentication_required",
+            "message": "로그인이 필요해요.",
+        }
+
+
+def test_mine_returns_only_the_signed_in_users_requests_newest_first() -> None:
+    async def create_and_list_mine() -> tuple[list[dict[str, object]], dict[str, object], dict[str, object], dict[str, object]]:
+        owner = await authenticated_client()
+        other_user = await authenticated_client()
+        try:
+            oldest = await owner.post(
+                "/api/requests",
+                json=valid_payload() | {"title": "첫 번째 내 구매요청"},
+            )
+            assert oldest.status_code == 201
+
+            other_request = await other_user.post(
+                "/api/requests",
+                json=valid_payload() | {"title": "다른 사용자의 구매요청"},
+            )
+            assert other_request.status_code == 201
+
+            newest = await owner.post(
+                "/api/requests",
+                json=valid_payload() | {"title": "가장 최근 내 구매요청"},
+            )
+            assert newest.status_code == 201
+
+            response = await owner.get("/api/requests/mine")
+            assert response.status_code == 200
+            return response.json(), oldest.json(), newest.json(), other_request.json()
+        finally:
+            await owner.aclose()
+            await other_user.aclose()
+
+    mine, oldest, newest, other_request = asyncio.run(create_and_list_mine())
+
+    assert [request["id"] for request in mine] == [newest["id"], oldest["id"]]
+    assert other_request["id"] not in [request["id"] for request in mine]
+
+
 def test_get_unknown_or_malformed_request_detail_returns_not_found_contract() -> None:
     async def get_unknown_details():
         unknown = await request("GET", f"/api/requests/{uuid4()}")
