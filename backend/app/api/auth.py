@@ -7,7 +7,11 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import read_auth_settings
 from app.repositories.sessions import create_session_repository
-from app.repositories.users import EmailAlreadyExistsError, create_user_repository
+from app.repositories.users import (
+    DisplayNameAlreadyExistsError,
+    EmailAlreadyExistsError,
+    create_user_repository,
+)
 from app.schemas.auth import ApiError, LoginRequest, PublicUser, SignupRequest
 from app.services.auth import AuthService, InvalidCredentialsError, InvalidSessionError
 
@@ -41,8 +45,16 @@ def signup(request: SignupRequest) -> PublicUser:
                 "message": "이미 사용 중인 이메일이에요.",
             },
         )
+    except DisplayNameAlreadyExistsError:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "code": "display_name_already_exists",
+                "message": "이미 사용 중인 표시 이름이에요.",
+            },
+        )
 
-    return PublicUser(id=user.id, email=user.email)
+    return PublicUser(id=user.id, email=user.email, display_name=user.display_name)
 
 
 @auth_router.post(
@@ -74,7 +86,11 @@ def login(request: LoginRequest, response: Response) -> PublicUser:
         httponly=True,
         samesite="lax",
     )
-    return PublicUser(id=result.user.id, email=result.user.email)
+    return PublicUser(
+        id=result.user.id,
+        email=result.user.email,
+        display_name=result.user.display_name,
+    )
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -108,4 +124,4 @@ def me(gm_session: str | None = Cookie(default=None)) -> PublicUser:
                 "message": "로그인이 필요해요.",
             },
         )
-    return PublicUser(id=user.id, email=user.email)
+    return PublicUser(id=user.id, email=user.email, display_name=user.display_name)

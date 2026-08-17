@@ -20,6 +20,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [signedIn, setSignedIn] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -32,9 +33,28 @@ export default function Header() {
       credentials: "include",
       cache: "no-store",
     }).then((response) => {
-      if (active) setSignedIn(response.ok);
+      if (!response.ok) {
+        if (active) {
+          setSignedIn(false);
+          setEmail(null);
+        }
+        return;
+      }
+      response.json().then((data) => {
+        if (!active) return;
+        setSignedIn(true);
+        setEmail(typeof data?.email === "string" ? data.email : null);
+      }).catch(() => {
+        if (active) {
+          setSignedIn(false);
+          setEmail(null);
+        }
+      });
     }).catch(() => {
-      if (active) setSignedIn(false);
+      if (active) {
+        setSignedIn(false);
+        setEmail(null);
+      }
     });
 
     return () => {
@@ -74,6 +94,7 @@ export default function Header() {
     try {
       await signOut();
       setSignedIn(false);
+      setEmail(null);
       setAccountOpen(false);
       setMobileOpen(false);
       router.replace("/");
@@ -100,10 +121,18 @@ export default function Header() {
         </Link>
         <nav className="gm-desktop-nav" aria-label="주요 메뉴">
           {navigation()}
+          <Link
+            href="/requests/new"
+            onClick={() => { setMobileOpen(false); setAccountOpen(false); }}
+            className="gm-header-signup"
+            aria-current={currentPath(pathname, "/requests/new") ? "page" : undefined}
+          >
+            구매요청 등록
+          </Link>
           <span className="gm-header-separator" aria-hidden="true" />
           {signedIn ? (
             <div className="gm-account-wrap">
-              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>내 계정</button>
+              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>{email ? `안녕하세요, ${email}님` : "내 계정"}</button>
               {accountOpen && <div className="gm-account-menu"><button type="button" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button></div>}
             </div>
           ) : (
@@ -122,10 +151,18 @@ export default function Header() {
             <button data-menu-close type="button" className="gm-menu-close" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }}>닫기</button>
             <nav aria-label="모바일 주요 메뉴" className="gm-mobile-nav">
               {navigation("gm-mobile-link")}
+              <Link
+                href="/requests/new"
+                onClick={() => setMobileOpen(false)}
+                className="gm-mobile-signup"
+                aria-current={currentPath(pathname, "/requests/new") ? "page" : undefined}
+              >
+                구매요청 등록
+              </Link>
               <span className="gm-mobile-divider" aria-hidden="true" />
               {signedIn ? (
                 <>
-                  <span className="gm-mobile-account">내 계정</span>
+                  <span className="gm-mobile-account">{email ? `안녕하세요, ${email}님` : "내 계정"}</span>
                   <button type="button" className="gm-mobile-logout" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>
                 </>
               ) : (

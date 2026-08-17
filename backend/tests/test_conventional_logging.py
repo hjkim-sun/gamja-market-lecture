@@ -98,7 +98,12 @@ def test_local_request_logging_creates_only_fixed_conventional_files(
     with TestClient(app) as client:
         response = client.post(
             f"/api/auth/signup?tracking={tracking}",
-            json={"email": email, "password": password},
+            json={
+                "email": email,
+                "password": password,
+                "password_confirmation": password,
+                "display_name": "관례 구매자",
+            },
         )
 
     assert response.status_code == 201

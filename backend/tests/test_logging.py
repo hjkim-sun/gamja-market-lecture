@@ -75,7 +75,12 @@ def test_http_request_log_is_conventional_and_omits_request_secrets(
     with TestClient(app) as client:
         response = client.post(
             f"/api/auth/signup?tracking={query_secret}",
-            json={"email": email, "password": password},
+            json={
+                "email": email,
+                "password": password,
+                "password_confirmation": password,
+                "display_name": "로그 구매자",
+            },
         )
 
     assert response.status_code == 201

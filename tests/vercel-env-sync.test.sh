@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Dependency-free contract tests for scripts/pull-vercel-env.sh.
+# Dependency-free contract tests for scripts/pull-env.sh.
 # Run: bash tests/vercel-env-sync.test.sh
 
 set -u -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT_SOURCE="$ROOT_DIR/scripts/pull-vercel-env.sh"
+SCRIPT_SOURCE="$ROOT_DIR/scripts/pull-env.sh"
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/gamja-vercel-env-sync.XXXXXX")"
 PROJECT_DIR="$TEST_TMP/project"
-PROJECT_ROOT=''
+WORKTREE_DIR="$TEST_TMP/worktree"
 FAKE_BIN="$TEST_TMP/bin"
 STATE_DIR="$TEST_TMP/state"
 FAILURES=0
-SECRET_VALUE='super-secret-value-that-must-never-reach-console'
 
 cleanup() {
   rm -rf "$TEST_TMP"
@@ -28,35 +27,35 @@ assert_file() {
   [[ -f "$1" ]] || fail "expected file to exist: $1"
 }
 
-assert_eq() {
-  local actual="$1" expected="$2" description="$3"
-  [[ "$actual" == "$expected" ]] || fail "$description (expected '$expected', got '$actual')"
+assert_files_equal() {
+  local expected="$1" actual="$2" description="$3"
+  cmp -s "$expected" "$actual" || fail "$description"
 }
 
-assert_contains() {
-  local needle="$1" file="$2" description="$3"
-  grep -F -- "$needle" "$file" >/dev/null 2>&1 || fail "$description (missing '$needle')"
-}
-
-assert_not_contains() {
-  local needle="$1" file="$2" description="$3"
-  if grep -F -- "$needle" "$file" >/dev/null 2>&1; then
-    fail "$description (unexpected '$needle')"
-  fi
-}
-
-assert_matches() {
-  local pattern="$1" file="$2" description="$3"
-  grep -E -- "$pattern" "$file" >/dev/null 2>&1 || fail "$description (no match for '$pattern')"
+assert_empty_file() {
+  local file="$1" description="$2"
+  [[ ! -s "$file" ]] || fail "$description"
 }
 
 setup_project() {
-  rm -rf "$PROJECT_DIR" "$STATE_DIR"
+  rm -rf "$PROJECT_DIR" "$WORKTREE_DIR" "$STATE_DIR"
   mkdir -p "$PROJECT_DIR/scripts" "$PROJECT_DIR/backend" "$PROJECT_DIR/frontend" \
     "$FAKE_BIN" "$STATE_DIR"
-  PROJECT_ROOT="$(cd "$PROJECT_DIR" && pwd)"
-  cp "$SCRIPT_SOURCE" "$PROJECT_DIR/scripts/pull-vercel-env.sh"
-  chmod +x "$PROJECT_DIR/scripts/pull-vercel-env.sh"
+  cp "$SCRIPT_SOURCE" "$PROJECT_DIR/scripts/pull-env.sh"
+  chmod +x "$PROJECT_DIR/scripts/pull-env.sh"
+}
+
+setup_git_worktree_project() {
+  setup_project
+
+  git -C "$PROJECT_DIR" init -q
+  git -C "$PROJECT_DIR" config user.email 'test@example.com'
+  git -C "$PROJECT_DIR" config user.name 'Environment Sync Test'
+  : > "$PROJECT_DIR/backend/.gitkeep"
+  : > "$PROJECT_DIR/frontend/.gitkeep"
+  git -C "$PROJECT_DIR" add scripts/pull-env.sh backend/.gitkeep frontend/.gitkeep
+  git -C "$PROJECT_DIR" commit -qm 'test fixture'
+  git -C "$PROJECT_DIR" worktree add -q -b env-copy-contract "$WORKTREE_DIR"
 }
 
 write_fake_vercel() {
@@ -66,126 +65,74 @@ write_fake_vercel() {
 set -eu
 
 printf '%s\n' "$*" >> "${VERCEL_TEST_CALLS:?}"
-
-if [[ "$1" != 'env' || "$2" != 'pull' ]]; then
-  printf 'fake vercel expected env pull\n' >&2
-  exit 64
-fi
-
-target=''
-environment=''
-shift 2
-while (( $# > 0 )); do
-  case "$1" in
-    --environment)
-      environment="${2:?missing value for --environment}"
-      shift 2
-      ;;
-    --environment=*)
-      environment="${1#--environment=}"
-      shift
-      ;;
-    -e)
-      environment="${2:?missing value for -e}"
-      shift 2
-      ;;
-    -e=*)
-      environment="${1#-e=}"
-      shift
-      ;;
-    --*)
-      shift
-      ;;
-    *)
-      if [[ -z "$target" ]]; then
-        target="$1"
-      fi
-      shift
-      ;;
-  esac
-done
-
-[[ -n "$target" ]] || {
-  printf 'fake vercel expected an env-file target\n' >&2
-  exit 64
-}
-[[ -n "$environment" ]] || {
-  printf 'fake vercel expected an explicit environment\n' >&2
-  exit 64
-}
-
-printf 'SYNCED_ENV=%s\n' "$environment" > "$target"
-printf 'PULLED_SECRET=%s\n' "${VERCEL_TEST_SECRET:?}" >> "$target"
+printf 'Vercel must not be called by worktree environment sync\n' >&2
+exit 97
 EOF
   chmod +x "$FAKE_BIN/vercel"
 }
 
 run_sync() {
-  local caller_dir="$1"
-  shift
+  local script_path="$1" caller_dir="$2"
   (
     cd "$caller_dir"
     PATH="$FAKE_BIN:$PATH" \
       VERCEL_TEST_CALLS="$STATE_DIR/vercel-calls.log" \
-      VERCEL_TEST_SECRET="$SECRET_VALUE" \
-      "$PROJECT_DIR/scripts/pull-vercel-env.sh" "$@"
+      "$script_path"
   ) > "$STATE_DIR/output.log" 2>&1
 }
 
-assert_sync_result() {
-  local environment="$1"
-  local backend_env="$PROJECT_DIR/backend/.env"
-  local frontend_env="$PROJECT_DIR/frontend/.env.local"
-
-  assert_file "$backend_env"
-  assert_file "$frontend_env"
-  assert_contains "SYNCED_ENV=$environment" "$backend_env" \
-    "backend environment file must be pulled for $environment"
-  assert_contains "SYNCED_ENV=$environment" "$frontend_env" \
-    "frontend environment file must be pulled for $environment"
-  assert_contains "env pull $PROJECT_ROOT/backend/.env" "$STATE_DIR/vercel-calls.log" \
-    "Vercel must pull directly into backend/.env"
-  assert_contains "env pull $PROJECT_ROOT/frontend/.env.local" "$STATE_DIR/vercel-calls.log" \
-    "Vercel must pull directly into frontend/.env.local"
-  assert_matches "(^| )(\\-\\-environment(=| )|\\-e(=| ))$environment( |$)" \
-    "$STATE_DIR/vercel-calls.log" \
-    "Vercel pulls must specify the selected environment explicitly"
-  assert_not_contains "$SECRET_VALUE" "$STATE_DIR/output.log" \
-    "sync command output must never expose pulled secret values"
-}
-
 if [[ ! -f "$SCRIPT_SOURCE" ]]; then
-  fail "missing required environment sync script: scripts/pull-vercel-env.sh"
+  fail "missing required environment sync script: scripts/pull-env.sh"
 else
   write_fake_vercel
 
-  # Default invocation must pull development values into both services, even
-  # when launched from a directory unrelated to the repository root.
+  # The script is only meaningful in a linked Git worktree. A regular
+  # directory cannot identify a primary checkout from which to copy values.
   setup_project
   : > "$STATE_DIR/vercel-calls.log"
-  if ! run_sync "$TEST_TMP"; then
-    fail "default environment sync must succeed from outside the repository root"
+  if run_sync "$PROJECT_DIR/scripts/pull-env.sh" "$PROJECT_DIR/backend"; then
+    fail "environment sync must require Git worktree metadata"
   fi
-  assert_sync_result 'development'
+  assert_empty_file "$STATE_DIR/vercel-calls.log" \
+    "metadata failure must not invoke Vercel CLI"
 
-  # A caller can intentionally select another Vercel environment.
-  setup_project
+  # A worktree receives both locally synced files from the primary checkout.
+  setup_git_worktree_project
+  printf 'BACKEND_ORIGIN=primary\nTOKEN=backend-primary\n' > "$PROJECT_DIR/backend/.env"
+  printf 'FRONTEND_ORIGIN=primary\nTOKEN=frontend-primary\n' > "$PROJECT_DIR/frontend/.env.local"
+  printf 'BACKEND_ORIGIN=stale\n' > "$WORKTREE_DIR/backend/.env"
+  printf 'FRONTEND_ORIGIN=stale\n' > "$WORKTREE_DIR/frontend/.env.local"
   : > "$STATE_DIR/vercel-calls.log"
-  if ! run_sync "$PROJECT_DIR/frontend" --environment preview; then
-    fail "environment sync must accept --environment preview"
+  if ! run_sync "$WORKTREE_DIR/scripts/pull-env.sh" "$WORKTREE_DIR/frontend"; then
+    fail "worktree environment sync must succeed without Vercel CLI access"
   fi
-  assert_sync_result 'preview'
+  assert_file "$WORKTREE_DIR/backend/.env"
+  assert_file "$WORKTREE_DIR/frontend/.env.local"
+  assert_files_equal "$PROJECT_DIR/backend/.env" "$WORKTREE_DIR/backend/.env" \
+    "worktree backend environment must match the primary checkout"
+  assert_files_equal "$PROJECT_DIR/frontend/.env.local" "$WORKTREE_DIR/frontend/.env.local" \
+    "worktree frontend environment must match the primary checkout"
+  assert_empty_file "$STATE_DIR/vercel-calls.log" \
+    "worktree sync must not invoke Vercel CLI"
 
-  # The error must tell developers exactly which missing dependency to install.
-  setup_project
-  if (
-    cd "$PROJECT_DIR/backend"
-    PATH='/usr/bin:/bin' "$PROJECT_DIR/scripts/pull-vercel-env.sh"
-  ) > "$STATE_DIR/no-vercel.out" 2>&1; then
-    fail "environment sync must fail when the Vercel CLI is unavailable"
+  # Missing either primary source must leave every existing target unchanged:
+  # a partial update would break the atomic two-file synchronization contract.
+  setup_git_worktree_project
+  printf 'BACKEND_ORIGIN=primary\n' > "$PROJECT_DIR/backend/.env"
+  printf 'BACKEND_ORIGIN=before-sync\n' > "$WORKTREE_DIR/backend/.env"
+  printf 'FRONTEND_ORIGIN=before-sync\n' > "$WORKTREE_DIR/frontend/.env.local"
+  cp "$WORKTREE_DIR/backend/.env" "$STATE_DIR/backend-before.env"
+  cp "$WORKTREE_DIR/frontend/.env.local" "$STATE_DIR/frontend-before.env.local"
+  : > "$STATE_DIR/vercel-calls.log"
+  if run_sync "$WORKTREE_DIR/scripts/pull-env.sh" "$WORKTREE_DIR"; then
+    fail "worktree environment sync must fail when a primary source is missing"
   fi
-  assert_contains 'Vercel CLI' "$STATE_DIR/no-vercel.out" \
-    "missing Vercel CLI error must clearly identify the dependency"
+  assert_files_equal "$STATE_DIR/backend-before.env" "$WORKTREE_DIR/backend/.env" \
+    "missing frontend source must preserve the backend target"
+  assert_files_equal "$STATE_DIR/frontend-before.env.local" "$WORKTREE_DIR/frontend/.env.local" \
+    "missing frontend source must preserve the frontend target"
+  assert_empty_file "$STATE_DIR/vercel-calls.log" \
+    "missing-source failure must not invoke Vercel CLI"
 fi
 
 if (( FAILURES > 0 )); then
@@ -193,4 +140,4 @@ if (( FAILURES > 0 )); then
   exit 1
 fi
 
-printf 'All Vercel environment-sync contract tests passed.\n'
+printf 'All worktree environment-sync contract tests passed.\n'

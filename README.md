@@ -44,10 +44,10 @@ scripts/dev.sh <backend|frontend|all> <start|stop|restart>
 
 ### Vercel 환경 변수 동기화
 
-Vercel CLI 로그인 및 프로젝트 link를 마친 뒤, 로컬 development 변수는 루트에서 다음 명령으로 두 서비스에 동기화합니다.
+각 Git worktree는 primary checkout에 이미 준비된 환경 파일을 다음 명령으로 복사해 사용합니다.
 
 ```bash
-scripts/pull-vercel-env.sh
+scripts/pull-env.sh
 ```
 
-필요하면 `scripts/pull-vercel-env.sh --environment preview` 또는 `-e=production`처럼 환경을 지정할 수 있습니다. Vercel CLI가 없다면 `npm install --global vercel`로 설치합니다.
+스크립트는 Git worktree 메타데이터에서 primary checkout을 찾아 `backend/.env`와 `frontend/.env.local`을 복사합니다. Vercel CLI·로그인·네트워크 연결은 사용하지 않으며, primary checkout에 두 파일이 모두 있어야 합니다. 두 원본을 모두 확인하고 임시 파일에 완전히 복사한 뒤 대상 파일을 교체하므로 원본을 찾지 못하거나 원본 파일이 없으면 현재 worktree의 파일은 변경하지 않습니다.

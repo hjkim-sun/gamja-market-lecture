@@ -14,10 +14,15 @@ class EmailAlreadyExistsError(Exception):
     """The database's normalized-email unique constraint was violated."""
 
 
+class DisplayNameAlreadyExistsError(Exception):
+    """The database's display-name unique constraint was violated."""
+
+
 @dataclass(frozen=True, slots=True)
 class AppUser:
     id: UUID
     email: str
+    display_name: str
     normalized_email: str
     password_hash: str
     created_at: datetime
@@ -29,6 +34,7 @@ class UserRepository(Protocol):
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser: ...
@@ -43,6 +49,7 @@ class InMemoryUserRepository:
 
     def __init__(self) -> None:
         self._users_by_normalized_email: dict[str, AppUser] = {}
+        self._users_by_display_name: dict[str, AppUser] = {}
         self._lock = Lock()
 
     def create(
@@ -50,20 +57,25 @@ class InMemoryUserRepository:
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser:
         with self._lock:
             if normalized_email in self._users_by_normalized_email:
                 raise EmailAlreadyExistsError
+            if display_name in self._users_by_display_name:
+                raise DisplayNameAlreadyExistsError
             user = AppUser(
                 id=user_id,
                 email=email,
+                display_name=display_name,
                 normalized_email=normalized_email,
                 password_hash=password_hash,
                 created_at=datetime.now().astimezone(),
             )
             self._users_by_normalized_email[normalized_email] = user
+            self._users_by_display_name[display_name] = user
             return user
 
     def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
@@ -89,6 +101,7 @@ class PostgresUserRepository:
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser:
@@ -100,15 +113,18 @@ class PostgresUserRepository:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
-                        insert into public.app_users (id, email, normalized_email, password_hash)
-                        values (%s, %s, %s, %s)
-                        returning id, email, normalized_email, password_hash, created_at
+                        insert into public.app_users
+                            (id, email, display_name, normalized_email, password_hash)
+                        values (%s, %s, %s, %s, %s)
+                        returning id, email, display_name, normalized_email, password_hash, created_at
                         """,
-                        (user_id, email, normalized_email, password_hash),
+                        (user_id, email, display_name, normalized_email, password_hash),
                     )
                     row = cursor.fetchone()
         except IntegrityError as error:
             if error.sqlstate == "23505":
+                if error.diag.constraint_name == "app_users_display_name_unique":
+                    raise DisplayNameAlreadyExistsError from error
                 raise EmailAlreadyExistsError from error
             raise
 
@@ -119,7 +135,7 @@ class PostgresUserRepository:
     def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
         return self._find_one(
             """
-            select id, email, normalized_email, password_hash, created_at
+            select id, email, display_name, normalized_email, password_hash, created_at
             from public.app_users
             where normalized_email = %s
             """,
@@ -129,7 +145,7 @@ class PostgresUserRepository:
     def get_by_id(self, user_id: UUID) -> AppUser | None:
         return self._find_one(
             """
-            select id, email, normalized_email, password_hash, created_at
+            select id, email, display_name, normalized_email, password_hash, created_at
             from public.app_users
             where id = %s
             """,
