@@ -48,6 +48,7 @@ class AuthService:
         return self._users.create(
             user_id=uuid4(),
             email=request.email,
+            display_name=request.display_name,
             normalized_email=request.email,
             password_hash=password_hash,
         )

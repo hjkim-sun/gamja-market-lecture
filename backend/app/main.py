@@ -85,6 +85,6 @@ async def invalid_input_handler(_: Request, __: RequestValidationError) -> JSONR
         status_code=400,
         content={
             "code": "invalid_input",
-            "message": "이메일 주소와 비밀번호를 확인해주세요.",
+            "message": "입력값을 확인해주세요.",
         },
     )
