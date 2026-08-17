@@ -12,7 +12,7 @@ TEMP_FILES=()
 
 usage() {
   cat <<'EOF'
-Usage: pull-vercel-env.sh
+Usage: pull-env.sh
 
 Copy backend/.env and frontend/.env.local from the primary Git checkout into
 the current checkout. The primary checkout must already contain both files.

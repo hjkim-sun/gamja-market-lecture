@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Dependency-free contract tests for scripts/pull-vercel-env.sh.
+# Dependency-free contract tests for scripts/pull-env.sh.
 # Run: bash tests/vercel-env-sync.test.sh
 
 set -u -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT_SOURCE="$ROOT_DIR/scripts/pull-vercel-env.sh"
+SCRIPT_SOURCE="$ROOT_DIR/scripts/pull-env.sh"
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/gamja-vercel-env-sync.XXXXXX")"
 PROJECT_DIR="$TEST_TMP/project"
 WORKTREE_DIR="$TEST_TMP/worktree"
@@ -41,8 +41,8 @@ setup_project() {
   rm -rf "$PROJECT_DIR" "$WORKTREE_DIR" "$STATE_DIR"
   mkdir -p "$PROJECT_DIR/scripts" "$PROJECT_DIR/backend" "$PROJECT_DIR/frontend" \
     "$FAKE_BIN" "$STATE_DIR"
-  cp "$SCRIPT_SOURCE" "$PROJECT_DIR/scripts/pull-vercel-env.sh"
-  chmod +x "$PROJECT_DIR/scripts/pull-vercel-env.sh"
+  cp "$SCRIPT_SOURCE" "$PROJECT_DIR/scripts/pull-env.sh"
+  chmod +x "$PROJECT_DIR/scripts/pull-env.sh"
 }
 
 setup_git_worktree_project() {
@@ -53,7 +53,7 @@ setup_git_worktree_project() {
   git -C "$PROJECT_DIR" config user.name 'Environment Sync Test'
   : > "$PROJECT_DIR/backend/.gitkeep"
   : > "$PROJECT_DIR/frontend/.gitkeep"
-  git -C "$PROJECT_DIR" add scripts/pull-vercel-env.sh backend/.gitkeep frontend/.gitkeep
+  git -C "$PROJECT_DIR" add scripts/pull-env.sh backend/.gitkeep frontend/.gitkeep
   git -C "$PROJECT_DIR" commit -qm 'test fixture'
   git -C "$PROJECT_DIR" worktree add -q -b env-copy-contract "$WORKTREE_DIR"
 }
@@ -82,7 +82,7 @@ run_sync() {
 }
 
 if [[ ! -f "$SCRIPT_SOURCE" ]]; then
-  fail "missing required environment sync script: scripts/pull-vercel-env.sh"
+  fail "missing required environment sync script: scripts/pull-env.sh"
 else
   write_fake_vercel
 
@@ -90,7 +90,7 @@ else
   # directory cannot identify a primary checkout from which to copy values.
   setup_project
   : > "$STATE_DIR/vercel-calls.log"
-  if run_sync "$PROJECT_DIR/scripts/pull-vercel-env.sh" "$PROJECT_DIR/backend"; then
+  if run_sync "$PROJECT_DIR/scripts/pull-env.sh" "$PROJECT_DIR/backend"; then
     fail "environment sync must require Git worktree metadata"
   fi
   assert_empty_file "$STATE_DIR/vercel-calls.log" \
@@ -103,7 +103,7 @@ else
   printf 'BACKEND_ORIGIN=stale\n' > "$WORKTREE_DIR/backend/.env"
   printf 'FRONTEND_ORIGIN=stale\n' > "$WORKTREE_DIR/frontend/.env.local"
   : > "$STATE_DIR/vercel-calls.log"
-  if ! run_sync "$WORKTREE_DIR/scripts/pull-vercel-env.sh" "$WORKTREE_DIR/frontend"; then
+  if ! run_sync "$WORKTREE_DIR/scripts/pull-env.sh" "$WORKTREE_DIR/frontend"; then
     fail "worktree environment sync must succeed without Vercel CLI access"
   fi
   assert_file "$WORKTREE_DIR/backend/.env"
@@ -124,7 +124,7 @@ else
   cp "$WORKTREE_DIR/backend/.env" "$STATE_DIR/backend-before.env"
   cp "$WORKTREE_DIR/frontend/.env.local" "$STATE_DIR/frontend-before.env.local"
   : > "$STATE_DIR/vercel-calls.log"
-  if run_sync "$WORKTREE_DIR/scripts/pull-vercel-env.sh" "$WORKTREE_DIR"; then
+  if run_sync "$WORKTREE_DIR/scripts/pull-env.sh" "$WORKTREE_DIR"; then
     fail "worktree environment sync must fail when a primary source is missing"
   fi
   assert_files_equal "$STATE_DIR/backend-before.env" "$WORKTREE_DIR/backend/.env" \
