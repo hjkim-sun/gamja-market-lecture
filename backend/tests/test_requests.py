@@ -178,6 +178,39 @@ def test_request_detail_identifies_only_the_authenticated_owner() -> None:
     assert other_user_detail.json()["isOwner"] is False
 
 
+def test_my_requests_returns_only_the_owner_requests_with_application_counts() -> None:
+    async def scenario():
+        buyer = await authenticated_client()
+        other_buyer = await authenticated_client()
+        seller = await authenticated_client()
+        try:
+            first = await buyer.post("/api/requests", json=valid_payload())
+            second = await buyer.post("/api/requests", json=valid_payload() | {"title": "맥북 에어 M3 13인치"})
+            other = await other_buyer.post("/api/requests", json=valid_payload() | {"title": "아이패드 에어 6세대"})
+            assert first.status_code == second.status_code == other.status_code == 201
+
+            applied = await seller.post(
+                f"/api/requests/{first.json()['id']}/applications",
+                json={"offeredPrice": 700000, "message": "동일 모델 재고가 있으며 오늘 바로 거래 가능합니다."},
+            )
+            assert applied.status_code == 201
+            mine = await buyer.get("/api/requests/mine")
+            anonymous = await request("GET", "/api/requests/mine")
+            return mine, anonymous, first.json()["id"], second.json()["id"], other.json()["id"]
+        finally:
+            await buyer.aclose(); await other_buyer.aclose(); await seller.aclose()
+
+    mine, anonymous, first_id, second_id, other_id = asyncio.run(scenario())
+
+    assert anonymous.status_code == 401
+    assert mine.status_code == 200
+    rows = mine.json()
+    assert {row["id"] for row in rows} == {first_id, second_id}
+    assert other_id not in {row["id"] for row in rows}
+    counts = {row["id"]: row["applicationCount"] for row in rows}
+    assert counts == {first_id: 1, second_id: 0}
+
+
 @pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="requires the configured PostgreSQL database")
 def test_postgres_request_detail_support_queries_are_available() -> None:
     """The authenticated detail path depends on both support-table lookups."""

@@ -13,6 +13,7 @@ from app.repositories.applications import AlreadyAppliedError, RequestNotOpenErr
 from app.schemas.requests import (
     ApiError,
     CreateRequestInput,
+    MyPurchaseRequestOut,
     PurchaseRequestDetailOut,
     PurchaseRequestOut,
 )
@@ -63,6 +64,27 @@ def list_purchase_requests() -> list[PurchaseRequestOut]:
     return [
         PurchaseRequestOut.model_validate(request, from_attributes=True)
         for request in _requests_service.list()
+    ]
+
+
+@requests_router.get(
+    "/mine",
+    response_model=list[MyPurchaseRequestOut],
+    responses={status.HTTP_401_UNAUTHORIZED: {"model": ApiError}},
+)
+def list_my_purchase_requests(
+    gm_session: str | None = Cookie(default=None),
+) -> list[MyPurchaseRequestOut] | JSONResponse:
+    try:
+        rows = _requests_service.list_mine(gm_session)
+    except InvalidSessionError:
+        return _authentication_required_response()
+    return [
+        MyPurchaseRequestOut(
+            **PurchaseRequestOut.model_validate(request, from_attributes=True).model_dump(),
+            application_count=count,
+        )
+        for request, count in rows
     ]
 
 

@@ -41,6 +41,7 @@ class ApplicationRepository(Protocol):
     def create(self, *, application_id: UUID, request_id: UUID, seller_id: UUID, offered_price: int, message: str) -> RequestApplication: ...
     def list_by_request(self, request_id: UUID) -> list[RequestApplication]: ...
     def list_by_seller(self, seller_id: UUID) -> list[RequestApplication]: ...
+    def count_by_request_ids(self, request_ids: list[UUID]) -> dict[UUID, int]: ...
     def get_by_id(self, application_id: UUID) -> RequestApplication | None: ...
     def get_by_request_and_seller(self, *, request_id: UUID, seller_id: UUID) -> RequestApplication | None: ...
     def accept(self, *, application_id: UUID, buyer_id: UUID, thread_id: UUID) -> RequestApplication: ...
@@ -72,6 +73,17 @@ class InMemoryApplicationRepository:
     def list_by_seller(self, seller_id: UUID) -> list[RequestApplication]:
         with self._lock:
             return sorted((a for a in self._applications.values() if a.seller_id == seller_id), key=lambda a: a.created_at, reverse=True)
+
+    def count_by_request_ids(self, request_ids: list[UUID]) -> dict[UUID, int]:
+        requested = set(request_ids)
+        if not requested:
+            return {}
+        with self._lock:
+            counts = {request_id: 0 for request_id in requested}
+            for application in self._applications.values():
+                if application.request_id in counts:
+                    counts[application.request_id] += 1
+            return counts
 
     def get_by_id(self, application_id: UUID) -> RequestApplication | None:
         with self._lock:
@@ -149,6 +161,19 @@ class PostgresApplicationRepository:
 
     def list_by_seller(self, seller_id: UUID) -> list[RequestApplication]:
         return self._many("where seller_id = %s order by created_at desc", (seller_id,))
+
+    def count_by_request_ids(self, request_ids: list[UUID]) -> dict[UUID, int]:
+        if not request_ids:
+            return {}
+        from psycopg import connect
+
+        with connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "select request_id, count(*) from public.request_applications where request_id = any(%s) group by request_id",
+                    (request_ids,),
+                )
+                return {row[0]: row[1] for row in cursor.fetchall()}
 
     def get_by_id(self, application_id: UUID) -> RequestApplication | None:
         rows = self._many("where id = %s", (application_id,))

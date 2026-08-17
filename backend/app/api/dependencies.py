@@ -12,6 +12,6 @@ from app.services.requests import PurchaseRequestService
 request_repository = create_purchase_request_repository()
 chat_repository = create_chat_repository()
 application_repository = create_application_repository(request_repository, chat_repository)
-requests_service = PurchaseRequestService(request_repository, _auth_service)
+requests_service = PurchaseRequestService(request_repository, _auth_service, application_repository)
 applications_service = ApplicationService(application_repository, request_repository, chat_repository, _user_repository, _auth_service)
 chats_service = ChatService(chat_repository, request_repository, _user_repository, _auth_service)

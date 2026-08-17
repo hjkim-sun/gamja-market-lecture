@@ -1,4 +1,4 @@
-import type { PurchaseRequest } from "@/types/request";
+import type { MyPurchaseRequest, PurchaseRequest } from "@/types/request";
 import { getSameOriginRequest } from "@/lib/api/same-origin-request";
 
 /** Fetches the full purchase-request list from the backend. Returns `[]` on any failure. */
@@ -13,6 +13,25 @@ export async function getRequests(): Promise<PurchaseRequest[]> {
 
   if (!response.ok) return [];
   return (await response.json()) as PurchaseRequest[];
+}
+
+export type MyRequestsResult =
+  | { ok: true; requests: MyPurchaseRequest[] }
+  | { ok: false; status: number };
+
+/** Fetches the signed-in buyer's requests and their current application counts. */
+export async function getMyRequests(): Promise<MyRequestsResult> {
+  const { cookie, url } = await getSameOriginRequest("/api/requests/mine");
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (!response.ok) return { ok: false, status: response.status };
+    return { ok: true, requests: (await response.json()) as MyPurchaseRequest[] };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 }
 
 /**

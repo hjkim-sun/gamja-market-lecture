@@ -61,6 +61,12 @@ class PurchaseRequestDetailOut(PurchaseRequestOut):
     viewer_chat_thread_id: UUID | None = Field(default=None, alias="viewerChatThreadId")
 
 
+class MyPurchaseRequestOut(PurchaseRequestOut):
+    """Owner-only request-list representation with a guaranteed application count."""
+
+    application_count: int = Field(alias="applicationCount")
+
+
 class ApiError(BaseModel):
     code: str
     message: str
