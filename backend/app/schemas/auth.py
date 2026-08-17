@@ -5,13 +5,15 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 _EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
-class SignupRequest(BaseModel):
+class CredentialsRequest(BaseModel):
+    """Shared normalized credential fields used by signup and login."""
+
     email: str
     password: str
 
@@ -31,13 +33,33 @@ class SignupRequest(BaseModel):
         return value
 
 
-class LoginRequest(SignupRequest):
+class SignupRequest(CredentialsRequest):
+    password_confirmation: str
+    display_name: str
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_and_validate_display_name(cls, value: str) -> str:
+        normalized_display_name = value.strip()
+        if not 1 <= len(normalized_display_name) <= 40:
+            raise ValueError("display name must be between 1 and 40 characters")
+        return normalized_display_name
+
+    @model_validator(mode="after")
+    def validate_password_confirmation(self) -> SignupRequest:
+        if self.password_confirmation != self.password:
+            raise ValueError("password confirmation must match password")
+        return self
+
+
+class LoginRequest(CredentialsRequest):
     """Login accepts the same normalized email and verbatim password shape."""
 
 
 class PublicUser(BaseModel):
     id: UUID
     email: str
+    display_name: str
 
 
 class ApiError(BaseModel):

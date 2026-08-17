@@ -42,7 +42,7 @@ def signup(request: SignupRequest) -> PublicUser:
             },
         )
 
-    return PublicUser(id=user.id, email=user.email)
+    return PublicUser(id=user.id, email=user.email, display_name=user.display_name)
 
 
 @auth_router.post(
@@ -74,7 +74,11 @@ def login(request: LoginRequest, response: Response) -> PublicUser:
         httponly=True,
         samesite="lax",
     )
-    return PublicUser(id=result.user.id, email=result.user.email)
+    return PublicUser(
+        id=result.user.id,
+        email=result.user.email,
+        display_name=result.user.display_name,
+    )
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -108,4 +112,4 @@ def me(gm_session: str | None = Cookie(default=None)) -> PublicUser:
                 "message": "로그인이 필요해요.",
             },
         )
-    return PublicUser(id=user.id, email=user.email)
+    return PublicUser(id=user.id, email=user.email, display_name=user.display_name)

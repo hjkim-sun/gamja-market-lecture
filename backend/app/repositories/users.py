@@ -18,6 +18,7 @@ class EmailAlreadyExistsError(Exception):
 class AppUser:
     id: UUID
     email: str
+    display_name: str
     normalized_email: str
     password_hash: str
     created_at: datetime
@@ -29,6 +30,7 @@ class UserRepository(Protocol):
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser: ...
@@ -50,6 +52,7 @@ class InMemoryUserRepository:
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser:
@@ -59,6 +62,7 @@ class InMemoryUserRepository:
             user = AppUser(
                 id=user_id,
                 email=email,
+                display_name=display_name,
                 normalized_email=normalized_email,
                 password_hash=password_hash,
                 created_at=datetime.now().astimezone(),
@@ -89,6 +93,7 @@ class PostgresUserRepository:
         *,
         user_id: UUID,
         email: str,
+        display_name: str,
         normalized_email: str,
         password_hash: str,
     ) -> AppUser:
@@ -100,11 +105,12 @@ class PostgresUserRepository:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
-                        insert into public.app_users (id, email, normalized_email, password_hash)
-                        values (%s, %s, %s, %s)
-                        returning id, email, normalized_email, password_hash, created_at
+                        insert into public.app_users
+                            (id, email, display_name, normalized_email, password_hash)
+                        values (%s, %s, %s, %s, %s)
+                        returning id, email, display_name, normalized_email, password_hash, created_at
                         """,
-                        (user_id, email, normalized_email, password_hash),
+                        (user_id, email, display_name, normalized_email, password_hash),
                     )
                     row = cursor.fetchone()
         except IntegrityError as error:
@@ -119,7 +125,7 @@ class PostgresUserRepository:
     def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
         return self._find_one(
             """
-            select id, email, normalized_email, password_hash, created_at
+            select id, email, display_name, normalized_email, password_hash, created_at
             from public.app_users
             where normalized_email = %s
             """,
@@ -129,7 +135,7 @@ class PostgresUserRepository:
     def get_by_id(self, user_id: UUID) -> AppUser | None:
         return self._find_one(
             """
-            select id, email, normalized_email, password_hash, created_at
+            select id, email, display_name, normalized_email, password_hash, created_at
             from public.app_users
             where id = %s
             """,
