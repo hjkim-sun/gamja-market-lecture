@@ -28,7 +28,7 @@ async def authenticated_client() -> AsyncClient:
         "email": f"requester-{uuid4().hex}@example.com",
         "password": "password123",
         "password_confirmation": "password123",
-        "display_name": "구매요청 작성자",
+        "display_name": f"요청-{uuid4().hex}",
     }
     signup_response = await client.post("/api/auth/signup", json=credentials)
     assert signup_response.status_code == 201

@@ -102,7 +102,7 @@ def test_local_request_logging_creates_only_fixed_conventional_files(
                 "email": email,
                 "password": password,
                 "password_confirmation": password,
-                "display_name": "감자 구매자",
+                "display_name": "관례 구매자",
             },
         )
 

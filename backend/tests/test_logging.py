@@ -79,7 +79,7 @@ def test_http_request_log_is_conventional_and_omits_request_secrets(
                 "email": email,
                 "password": password,
                 "password_confirmation": password,
-                "display_name": "감자 구매자",
+                "display_name": "로그 구매자",
             },
         )
 
