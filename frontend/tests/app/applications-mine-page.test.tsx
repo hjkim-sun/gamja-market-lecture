@@ -40,7 +40,7 @@ describe("/applications/mine", () => {
 
     const html = renderToStaticMarkup(await MyApplicationsPage());
 
-    expect(html).toContain("아직 신청한 판매 지원이 없어요");
+    expect(html).toContain("아직 판매 신청한 구매요청이 없어요");
     expect(html).not.toMatch(/오류|에러|찾을 수 없어요/);
   });
 

@@ -12,7 +12,7 @@ export default function MyApplicationList({ applications }: { applications: MyAp
   if (applications.length === 0) {
     return (
       <p className="rounded-2xl bg-white p-6 text-center text-sm text-[#8a6a4a] shadow-sm ring-1 ring-amber-200/60">
-        아직 신청한 판매 지원이 없어요.
+        아직 판매 신청한 구매요청이 없어요.
       </p>
     );
   }
