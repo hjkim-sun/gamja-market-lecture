@@ -100,6 +100,14 @@ export default function Header() {
         </Link>
         <nav className="gm-desktop-nav" aria-label="주요 메뉴">
           {navigation()}
+          <Link
+            href="/requests/new"
+            onClick={() => { setMobileOpen(false); setAccountOpen(false); }}
+            className="gm-header-signup"
+            aria-current={currentPath(pathname, "/requests/new") ? "page" : undefined}
+          >
+            구매요청 등록
+          </Link>
           <span className="gm-header-separator" aria-hidden="true" />
           {signedIn ? (
             <div className="gm-account-wrap">
@@ -122,6 +130,14 @@ export default function Header() {
             <button data-menu-close type="button" className="gm-menu-close" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }}>닫기</button>
             <nav aria-label="모바일 주요 메뉴" className="gm-mobile-nav">
               {navigation("gm-mobile-link")}
+              <Link
+                href="/requests/new"
+                onClick={() => setMobileOpen(false)}
+                className="gm-mobile-signup"
+                aria-current={currentPath(pathname, "/requests/new") ? "page" : undefined}
+              >
+                구매요청 등록
+              </Link>
               <span className="gm-mobile-divider" aria-hidden="true" />
               {signedIn ? (
                 <>

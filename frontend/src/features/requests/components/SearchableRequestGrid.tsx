@@ -22,6 +22,22 @@ export default function SearchableRequestGrid({
     );
   }, [requests, query]);
 
+  if (requests.length === 0) {
+    return (
+      <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-amber-200/60">
+        <p className="text-sm text-[#8a6a4a]">
+          아직 등록된 구매요청이 없어요. 첫 요청을 등록해보세요!
+        </p>
+        <Link
+          href="/requests/new"
+          className="mt-4 inline-flex items-center justify-center rounded-full bg-[#d9822b] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#c46f1d]"
+        >
+          구매요청 등록하기
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="relative mx-auto mb-10 max-w-xl">

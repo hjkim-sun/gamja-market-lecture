@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import StatusBadge from "@/features/requests/components/StatusBadge";
-import { getMockRequestById, mockRequests } from "@/features/requests/data/mock-requests";
-
-export function generateStaticParams() {
-  return mockRequests.map((request) => ({ id: request.id }));
-}
+import { getRequestById } from "@/features/requests/data/requests-api";
 
 export async function generateMetadata(props: PageProps<"/requests/[id]">) {
   const { id } = await props.params;
-  const request = getMockRequestById(id);
+  const request = await getRequestById(id);
   return {
     title: request ? `${request.title} — 감자마켓` : "구매요청을 찾을 수 없어요 — 감자마켓",
   };
@@ -19,7 +15,7 @@ export default async function RequestDetailPage(
   props: PageProps<"/requests/[id]">,
 ) {
   const { id } = await props.params;
-  const request = getMockRequestById(id);
+  const request = await getRequestById(id);
 
   if (!request) {
     notFound();

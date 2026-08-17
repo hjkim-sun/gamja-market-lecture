@@ -1,47 +1,71 @@
 import Link from "next/link";
 import StatusBadge from "@/features/requests/components/StatusBadge";
-import { mockRequests } from "@/features/requests/data/mock-requests";
+import { getRequests } from "@/features/requests/data/requests-api";
 
 export const metadata = {
   title: "구매요청 목록 — 감자마켓",
 };
 
-export default function RequestsPage() {
+export default async function RequestsPage() {
+  const requests = await getRequests();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold text-[#4a2f1c] sm:text-3xl">
-          구매요청 목록
-        </h1>
-        <p className="mt-2 text-sm text-[#8a6a4a]">
-          지금 감자마켓에 올라와 있는 구매요청이에요. 마음에 드는 요청을
-          눌러 자세히 확인해보세요.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#4a2f1c] sm:text-3xl">
+            구매요청 목록
+          </h1>
+          <p className="mt-2 text-sm text-[#8a6a4a]">
+            지금 감자마켓에 올라와 있는 구매요청이에요. 마음에 드는 요청을
+            눌러 자세히 확인해보세요.
+          </p>
+        </div>
+        <Link
+          href="/requests/new"
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#d9822b] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#c46f1d]"
+        >
+          구매요청 등록
+        </Link>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {mockRequests.map((request) => (
+      {requests.length === 0 ? (
+        <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-amber-200/60">
+          <p className="text-sm text-[#8a6a4a]">
+            아직 등록된 구매요청이 없어요. 첫 요청을 등록해보세요!
+          </p>
           <Link
-            key={request.id}
-            href={`/requests/${request.id}`}
-            className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-amber-200/60 transition hover:shadow-md"
+            href="/requests/new"
+            className="mt-4 inline-flex items-center justify-center rounded-full bg-[#d9822b] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#c46f1d]"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-600">
-                {request.category}
-              </span>
-              <StatusBadge status={request.status} />
-            </div>
-            <h2 className="line-clamp-2 font-bold text-[#4a2f1c]">
-              {request.title}
-            </h2>
-            <p className="text-lg font-extrabold text-[#d9822b]">
-              {request.desiredPrice.toLocaleString()}원
-            </p>
-            <p className="text-xs text-[#b89a7c]">{request.createdAt} 등록</p>
+            구매요청 등록하기
           </Link>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {requests.map((request) => (
+            <Link
+              key={request.id}
+              href={`/requests/${request.id}`}
+              className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-amber-200/60 transition hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-600">
+                  {request.category}
+                </span>
+                <StatusBadge status={request.status} />
+              </div>
+              <h2 className="line-clamp-2 font-bold text-[#4a2f1c]">
+                {request.title}
+              </h2>
+              <p className="text-lg font-extrabold text-[#d9822b]">
+                {request.desiredPrice.toLocaleString()}원
+              </p>
+              <p className="text-xs text-[#b89a7c]">{request.createdAt} 등록</p>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
