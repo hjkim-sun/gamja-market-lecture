@@ -22,26 +22,41 @@ describe("/requests/mine", () => {
     expect(mocks.redirect).toHaveBeenCalledWith("/login?next=/requests/mine");
   });
 
-  it("renders the signed-in user's purchase-request cards with links to their details", async () => {
+  it("renders the signed-in user's purchase-request card and application counts", async () => {
     mocks.getMyRequests.mockResolvedValue({
       ok: true,
-      requests: [{
-        id: "request-1",
-        title: "닌텐도 스위치 OLED 화이트",
-        category: "디지털기기",
-        desiredPrice: 700000,
-        status: "모집중",
-        createdAt: "2026-08-17T00:00:00.000Z",
-        description: "미개봉 또는 상태 좋은 제품을 찾고 있어요.",
-        isOwner: true,
-      }],
+      requests: [
+        {
+          id: "zero",
+          title: "지원 없음",
+          category: "디지털기기",
+          desiredPrice: 1000,
+          status: "모집중",
+          createdAt: "오늘",
+          description: "설명",
+          applicationCount: 0,
+        },
+        {
+          id: "two",
+          title: "닌텐도 스위치 OLED 화이트",
+          category: "디지털기기",
+          desiredPrice: 700000,
+          status: "모집중",
+          createdAt: "2026-08-17T00:00:00.000Z",
+          description: "미개봉 또는 상태 좋은 제품을 찾고 있어요.",
+          applicationCount: 2,
+        },
+      ],
     });
 
     const html = renderToStaticMarkup(await MyRequestsPage());
 
     expect(html).toContain("닌텐도 스위치 OLED 화이트");
     expect(html).toContain("700,000원");
-    expect(html).toContain('href="/requests/request-1"');
+    expect(html).toContain('href="/requests/two"');
+    expect(html).toContain("현재 지원자 수: 0명");
+    expect(html).toContain('href="/requests/two/applications"');
+    expect(html).toContain("현재 지원자 수: 2명");
   });
 
   it("shows a non-error empty state and request-registration link when there are no purchase requests", async () => {

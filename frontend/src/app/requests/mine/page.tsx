@@ -47,25 +47,35 @@ export default async function MyRequestsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {requests.map((request) => (
-            <Link
+            <article
               key={request.id}
-              href={`/requests/${request.id}`}
-              className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-amber-200/60 transition hover:shadow-md"
+              className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-amber-200/60"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-amber-600">
-                  {request.category}
-                </span>
+                <span className="text-xs font-semibold text-amber-600">{request.category}</span>
                 <StatusBadge status={request.status} />
               </div>
-              <h2 className="line-clamp-2 font-bold text-[#4a2f1c]">
+              <Link
+                href={`/requests/${request.id}`}
+                className="line-clamp-2 font-bold text-[#4a2f1c] hover:underline"
+              >
                 {request.title}
-              </h2>
+              </Link>
               <p className="text-lg font-extrabold text-[#d9822b]">
                 {request.desiredPrice.toLocaleString()}원
               </p>
               <p className="text-xs text-[#b89a7c]">{request.createdAt} 등록</p>
-            </Link>
+              {request.applicationCount === 0 ? (
+                <p className="text-sm font-semibold text-[#6b5540]">현재 지원자 수: 0명</p>
+              ) : (
+                <Link
+                  href={`/requests/${request.id}/applications`}
+                  className="text-sm font-semibold text-[#d9822b] hover:underline"
+                >
+                  현재 지원자 수: {request.applicationCount}명
+                </Link>
+              )}
+            </article>
           ))}
         </div>
       )}

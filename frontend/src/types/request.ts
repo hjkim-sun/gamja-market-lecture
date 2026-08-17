@@ -29,3 +29,15 @@ export type PurchaseRequest = {
    */
   viewerChatThreadId?: string | null;
 };
+
+/** One row of `GET /api/requests/mine` — always owned by the signed-in viewer. */
+export type MyPurchaseRequest = {
+  id: string;
+  title: string;
+  desiredPrice: number;
+  status: "모집중" | "협의중" | "마감";
+  category: RequestCategory;
+  createdAt: string;
+  description: string;
+  applicationCount: number;
+};
