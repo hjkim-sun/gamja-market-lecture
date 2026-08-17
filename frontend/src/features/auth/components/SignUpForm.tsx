@@ -59,7 +59,7 @@ export default function SignUpForm() {
 
     if (!isValidEmail(email)) errors.email = "이메일 주소를 확인해주세요.";
     if (displayName.length < 1 || displayName.length > 40) {
-      errors.displayName = "표시 이름은 1자 이상 40자 이하로 입력해주세요.";
+      errors.displayName = "익명 아이디는 1자 이상 40자 이하로 입력해주세요.";
     }
     if (password.length < 8) errors.password = "비밀번호는 8자 이상 입력해주세요.";
     if (!errors.password && passwordConfirmation !== password) {
@@ -115,7 +115,7 @@ export default function SignUpForm() {
         />
         <AuthField
           name="displayName"
-          label="표시 이름"
+          label="익명 아이디"
           placeholder="예: 날아오르는 감자"
           helpText="다른 사용자에게 보여질 이름이에요. (1~40자)"
           error={fieldErrors.displayName}
