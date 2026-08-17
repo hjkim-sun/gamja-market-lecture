@@ -9,6 +9,7 @@ SCRIPT_SOURCE="$ROOT_DIR/scripts/pull-vercel-env.sh"
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/gamja-vercel-env-sync.XXXXXX")"
 PROJECT_DIR="$TEST_TMP/project"
 PROJECT_ROOT=''
+WORKTREE_DIR="$TEST_TMP/worktree"
 FAKE_BIN="$TEST_TMP/bin"
 STATE_DIR="$TEST_TMP/state"
 FAILURES=0
@@ -33,6 +34,16 @@ assert_eq() {
   [[ "$actual" == "$expected" ]] || fail "$description (expected '$expected', got '$actual')"
 }
 
+assert_files_equal() {
+  local expected="$1" actual="$2" description="$3"
+  cmp -s "$expected" "$actual" || fail "$description"
+}
+
+assert_empty_file() {
+  local file="$1" description="$2"
+  [[ ! -s "$file" ]] || fail "$description"
+}
+
 assert_contains() {
   local needle="$1" file="$2" description="$3"
   grep -F -- "$needle" "$file" >/dev/null 2>&1 || fail "$description (missing '$needle')"
@@ -51,12 +62,25 @@ assert_matches() {
 }
 
 setup_project() {
-  rm -rf "$PROJECT_DIR" "$STATE_DIR"
+  rm -rf "$PROJECT_DIR" "$WORKTREE_DIR" "$STATE_DIR"
   mkdir -p "$PROJECT_DIR/scripts" "$PROJECT_DIR/backend" "$PROJECT_DIR/frontend" \
     "$FAKE_BIN" "$STATE_DIR"
   PROJECT_ROOT="$(cd "$PROJECT_DIR" && pwd)"
   cp "$SCRIPT_SOURCE" "$PROJECT_DIR/scripts/pull-vercel-env.sh"
   chmod +x "$PROJECT_DIR/scripts/pull-vercel-env.sh"
+}
+
+setup_git_worktree_project() {
+  setup_project
+
+  git -C "$PROJECT_DIR" init -q
+  git -C "$PROJECT_DIR" config user.email 'test@example.com'
+  git -C "$PROJECT_DIR" config user.name 'Environment Sync Test'
+  : > "$PROJECT_DIR/backend/.gitkeep"
+  : > "$PROJECT_DIR/frontend/.gitkeep"
+  git -C "$PROJECT_DIR" add scripts/pull-vercel-env.sh backend/.gitkeep frontend/.gitkeep
+  git -C "$PROJECT_DIR" commit -qm 'test fixture'
+  git -C "$PROJECT_DIR" worktree add -q -b env-copy-contract "$WORKTREE_DIR"
 }
 
 write_fake_vercel() {
@@ -132,6 +156,16 @@ run_sync() {
   ) > "$STATE_DIR/output.log" 2>&1
 }
 
+run_worktree_sync() {
+  (
+    cd "$WORKTREE_DIR/frontend"
+    PATH="$FAKE_BIN:$PATH" \
+      VERCEL_TEST_CALLS="$STATE_DIR/vercel-calls.log" \
+      VERCEL_TEST_SECRET="$SECRET_VALUE" \
+      "$WORKTREE_DIR/scripts/pull-vercel-env.sh"
+  ) > "$STATE_DIR/output.log" 2>&1
+}
+
 assert_sync_result() {
   local environment="$1"
   local backend_env="$PROJECT_DIR/backend/.env"
@@ -186,6 +220,25 @@ else
   fi
   assert_contains 'Vercel CLI' "$STATE_DIR/no-vercel.out" \
     "missing Vercel CLI error must clearly identify the dependency"
+
+  # A worktree must inherit the primary checkout's already-synced local
+  # environment files. This path must be a local, atomic file copy: invoking
+  # Vercel here would create a second, unnecessary remote sync.
+  setup_git_worktree_project
+  printf 'BACKEND_ORIGIN=primary\nTOKEN=backend-primary\n' > "$PROJECT_DIR/backend/.env"
+  printf 'FRONTEND_ORIGIN=primary\nTOKEN=frontend-primary\n' > "$PROJECT_DIR/frontend/.env.local"
+  printf 'BACKEND_ORIGIN=stale\n' > "$WORKTREE_DIR/backend/.env"
+  printf 'FRONTEND_ORIGIN=stale\n' > "$WORKTREE_DIR/frontend/.env.local"
+  : > "$STATE_DIR/vercel-calls.log"
+  if ! run_worktree_sync; then
+    fail "worktree environment sync must succeed without Vercel CLI access"
+  fi
+  assert_files_equal "$PROJECT_DIR/backend/.env" "$WORKTREE_DIR/backend/.env" \
+    "worktree backend environment must atomically match the primary checkout"
+  assert_files_equal "$PROJECT_DIR/frontend/.env.local" "$WORKTREE_DIR/frontend/.env.local" \
+    "worktree frontend environment must atomically match the primary checkout"
+  assert_empty_file "$STATE_DIR/vercel-calls.log" \
+    "Git-worktree sync must not invoke Vercel CLI"
 fi
 
 if (( FAILURES > 0 )); then
