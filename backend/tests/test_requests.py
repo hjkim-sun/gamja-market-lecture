@@ -145,3 +145,30 @@ def test_get_unknown_or_malformed_request_detail_returns_not_found_contract() ->
             "code": "not_found",
             "message": "구매요청을 찾을 수 없어요.",
         }
+
+
+def test_request_detail_identifies_only_the_authenticated_owner() -> None:
+    async def get_detail_as_each_viewer() -> tuple[object, object, object]:
+        owner = await authenticated_client()
+        other_user = await authenticated_client()
+        try:
+            created = await owner.post("/api/requests", json=valid_payload())
+            assert created.status_code == 201
+            request_id = created.json()["id"]
+
+            owner_detail = await owner.get(f"/api/requests/{request_id}")
+            anonymous_detail = await request("GET", f"/api/requests/{request_id}")
+            other_user_detail = await other_user.get(f"/api/requests/{request_id}")
+            return owner_detail, anonymous_detail, other_user_detail
+        finally:
+            await owner.aclose()
+            await other_user.aclose()
+
+    owner_detail, anonymous_detail, other_user_detail = asyncio.run(get_detail_as_each_viewer())
+
+    assert owner_detail.status_code == 200
+    assert owner_detail.json()["isOwner"] is True
+    assert anonymous_detail.status_code == 200
+    assert anonymous_detail.json()["isOwner"] is False
+    assert other_user_detail.status_code == 200
+    assert other_user_detail.json()["isOwner"] is False
