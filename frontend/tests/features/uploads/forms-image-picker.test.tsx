@@ -6,8 +6,8 @@ import RequestForm from "@/features/requests/components/RequestForm";
 
 describe("request and application forms", () => {
   it.each([
-    ["purchase request", <RequestForm />],
-    ["seller application", <ApplyForm requestId="request-1" />],
+    ["purchase request", <RequestForm key="request" />],
+    ["seller application", <ApplyForm key="application" requestId="request-1" />],
   ])("includes the shared optional image picker for %s", (_label, form) => {
     const html = renderToStaticMarkup(form);
 
