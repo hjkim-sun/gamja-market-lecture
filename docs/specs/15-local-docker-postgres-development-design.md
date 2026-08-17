@@ -90,6 +90,17 @@ scripts/dev.sh backend start
 
 `backend/.env`가 이미 호스티드 Supabase를 가리키는 값(현재 이 워크스페이스 상태)이라면, 도구는 이를 자동으로 덮어쓰지 않는다 — `DATABASE_URL`을 로컬 값으로 바꾸는 것은 개발자가 수동으로 해야 하는 1회성 전환이며, 이를 "위험" 절에서 별도로 명시한다.
 
+## 환경 변수 우선순위
+
+로컬 Docker PostgreSQL과 호스티드 Supabase 사이의 전환은 전적으로 `DATABASE_URL` 값 하나로 이루어지며, 이 값이 어디서 오는지는 백엔드 실행 경로에 따라 달라진다. 백엔드 앱 코드에는 `python-dotenv` 등 자체 `.env` 로더가 없다(`os.getenv`만 사용, `backend/app/repositories/users.py:172` 등) — `.env` 파일을 읽는 주체는 오직 `scripts/dev.sh`뿐이다.
+
+1. **`scripts/dev.sh backend start` / `scripts/dev.sh all start` 경유 실행**: `load_backend_env()`(`scripts/dev.sh:102-113`)가 `set -a` 상태에서 `backend/.env`(또는 `DEV_BACKEND_ENV_FILE`로 재정의된 경로)를 `source`한 뒤 `uv run uvicorn ...`을 실행한다. `source`는 파일의 대입을 무조건 실행하므로, **`backend/.env`에 적힌 값이 그 시점에 이미 내보내져 있던 동일 이름의 셸 환경 변수를 덮어쓴다.** 즉 우선순위는 "`backend/.env`(있으면) > 사전에 export된 셸 값"이며, 파일에 없는 변수만 기존 셸 값이 그대로 유지된다.
+2. **`uv run uvicorn ...` / `uv run pytest` 등 `scripts/dev.sh`를 거치지 않는 직접 실행**: `backend/.env`는 전혀 읽히지 않는다. 오직 명령을 실행하는 셸의 현재 환경 변수만 프로세스에 전달된다. `tests/test_requests.py:273`의 `@pytest.mark.skipif(not os.getenv("DATABASE_URL"), ...)`처럼 PostgreSQL 연동 테스트를 돌리려면 개발자가 `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gamja_market uv run pytest`처럼 **셸에서 직접 export하거나 인라인으로 지정**해야 한다. `scripts/db-local.sh`(제안)도 마찬가지로 `.env` 파일을 대신 읽어주지 않으므로, "수용 기준" 7번의 `uv run pytest` 실행 전에 이 값을 개발자(또는 CI 스크립트)가 셸 레벨에서 명시적으로 설정해야 함을 문서화한다.
+3. **테스트 격리 훅**: `DEV_BACKEND_ENV_FILE`은 `scripts/dev.sh`가 읽는 파일 경로를 오버라이드하는 기존 계약(`docs/specs/06-backend-env-file-support-design.md`)이며 일반 개발 설정이 아니다. 신설되는 `scripts/db-local.sh`와 `tests/db-local.test.sh`는 이 관례를 재사용해 `DEV_BACKEND_ENV_FILE`(또는 이에 상응하는 db-local 전용 변수)로 실제 `backend/.env`를 건드리지 않고 격리된 fixture를 대상으로 동작을 검증해야 한다.
+4. **`backend/.env`가 없을 때**: `load_backend_env()`는 조용히 아무 것도 하지 않고 반환한다(`[[ -f "$env_file" ]] || return 0`). 이 경우 `scripts/dev.sh` 경유 실행도 직접 실행과 동일하게 순수 셸 환경만 사용한다.
+5. **Vercel/운영 배포와의 관계**: `APP_ENV`와 `VERCEL`(플랫폼이 자동 주입)은 `backend/app/core/config.py:47`의 `production` 판정(쿠키 `Secure` 강제 등)에만 관여하며 `DATABASE_URL` 선택에는 관여하지 않는다 — Vercel에 배포된 백엔드는 Vercel 대시보드에 설정된 환경 변수를 쓰고, `backend/.env` 파일은 그 배포 경로에 전혀 개입하지 않는다. `scripts/pull-env.sh`(`docs/specs/07`)는 같은 Git 공용 디렉터리의 primary checkout에서 `backend/.env`/`frontend/.env.local`을 현재 worktree로 복사할 뿐이며 Vercel CLI를 호출하지 않으므로, 이 파일 동기화 경로와 Vercel 배포 환경 변수 경로는 서로 독립적이다.
+6. **자동 환경 판별 없음**: 위 어떤 경로에도 "호스트명을 보고 로컬/운영을 자동 구분"하는 로직이 없다. `DATABASE_URL`이 로컬 컨테이너를 가리키는지 호스티드 Supabase를 가리키는지는 오직 그 문자열의 현재 값으로만 결정되며, 이는 "위험 및 한계"에서 다룬 수동 전환 위험의 근거이기도 하다.
+
 ## 수용 기준 (테스트 가능)
 
 1. `docker compose -f docker-compose.local.yml config --quiet`가 종료 코드 0을 반환한다(compose 파일 문법 유효성).
@@ -102,6 +113,7 @@ scripts/dev.sh backend start
 8. `DATABASE_URL`을 설정하지 않은 기존 인메모리 리포지토리 테스트 스위트는 이번 변경과 무관하게 그대로 통과한다(회귀 없음).
 9. `tests/db-local.test.sh`(신설)가 `bash -n scripts/db-local.sh` 문법 검사, 알 수 없는 서브커맨드에 대한 0이 아닌 종료 코드와 명확한 오류 메시지, 그리고 표준출력/로그에 자격 증명(`DATABASE_URL`, 비밀번호)이 노출되지 않음을 검증한다.
 10. 신규 마이그레이션 파일이 매니페스트에 없고 `auth.`/`storage.` 등 Supabase 전용 참조를 포함하면 `migrate`가 실패하고, 참조가 없으면 자동으로 이식 가능 목록에 포함되어 통과한다(제외 목록 fail-closed 동작 검증).
+11. `backend/.env`에 로컬 컨테이너용 `DATABASE_URL`을 적어두고, 이와 다른 값을 셸에 미리 `export`한 상태에서 `scripts/dev.sh backend start`를 실행하면 기동된 프로세스는 `backend/.env`의 값을 사용한다(파일이 셸 값을 덮어씀을 검증). 반대로 `scripts/dev.sh`를 거치지 않고 `uv run pytest`를 직접 실행하면 `backend/.env`는 무시되고 셸에 `export`된 값만 적용된다(직접 실행 시 `.env` 미반영을 검증).
 
 ## 위험 및 한계
 
