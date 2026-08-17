@@ -41,3 +41,13 @@ scripts/dev.sh <backend|frontend|all> <start|stop|restart>
 ```
 
 상태 파일과 리디렉션된 출력은 추적하지 않는 `.runtime/dev/`에 저장됩니다. 서비스는 `nohup`과 `python3`의 새 세션으로 분리되어 명령을 실행한 터미널을 닫아도 계속 실행되며, 시작 전 포트 `8000`(backend)과 `3000`(frontend)의 다른 점유자를 확인해 점유자를 종료하지 않고 시작을 거부합니다.
+
+### Vercel 환경 변수 동기화
+
+Vercel CLI 로그인 및 프로젝트 link를 마친 뒤, 로컬 development 변수는 루트에서 다음 명령으로 두 서비스에 동기화합니다.
+
+```bash
+scripts/pull-vercel-env.sh
+```
+
+필요하면 `scripts/pull-vercel-env.sh --environment preview` 또는 `-e=production`처럼 환경을 지정할 수 있습니다. Vercel CLI가 없다면 `npm install --global vercel`로 설치합니다.
