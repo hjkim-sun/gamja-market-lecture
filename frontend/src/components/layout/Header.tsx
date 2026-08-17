@@ -95,7 +95,7 @@ export default function Header() {
     <header className="gm-header">
       <div className="gm-header-inner">
         <Link href="/" className="gm-logo" aria-label="감자마켓 홈">
-          <Image src="/gamja-mascot.png" alt="감자마켓 마스코트" width={40} height={40} className="h-10 w-10 object-contain" priority />
+          <Image src="/gamja-mascot.png" alt="감자마켓 마스코트" width={40} height={40} className="h-10 w-10 object-contain" priority unoptimized />
           <span>감자마켓</span>
         </Link>
         <nav className="gm-desktop-nav" aria-label="주요 메뉴">
