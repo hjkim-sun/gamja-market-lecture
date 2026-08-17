@@ -67,6 +67,24 @@ def list_purchase_requests() -> list[PurchaseRequestOut]:
 
 
 @requests_router.get(
+    "/mine",
+    response_model=list[PurchaseRequestOut],
+    responses={status.HTTP_401_UNAUTHORIZED: {"model": ApiError}},
+)
+def list_my_purchase_requests(
+    gm_session: str | None = Cookie(default=None),
+) -> list[PurchaseRequestOut] | JSONResponse:
+    try:
+        requests = _requests_service.list_mine(gm_session)
+    except InvalidSessionError:
+        return _authentication_required_response()
+    return [
+        PurchaseRequestOut.model_validate(request, from_attributes=True)
+        for request in requests
+    ]
+
+
+@requests_router.get(
     "/{request_id}",
     response_model=PurchaseRequestDetailOut,
     responses={status.HTTP_404_NOT_FOUND: {"model": ApiError}},
