@@ -120,7 +120,13 @@ export default function Header() {
                 채팅
               </Link>
               <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>내 계정</button>
-              {accountOpen && <div className="gm-account-menu"><button type="button" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button></div>}
+              {accountOpen && (
+                <div className="gm-account-menu">
+                  <Link href="/requests/mine" onClick={() => { setMobileOpen(false); setAccountOpen(false); }}>내 구매 요청</Link>
+                  <Link href="/applications/mine" onClick={() => { setMobileOpen(false); setAccountOpen(false); }}>내 판매 신청</Link>
+                  <button type="button" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -158,6 +164,8 @@ export default function Header() {
                     채팅
                   </Link>
                   <span className="gm-mobile-account">내 계정</span>
+                  <Link href="/requests/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/requests/mine") ? "page" : undefined}>내 구매 요청</Link>
+                  <Link href="/applications/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/applications/mine") ? "page" : undefined}>내 판매 신청</Link>
                   <button type="button" className="gm-mobile-logout" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>
                 </>
               ) : (
