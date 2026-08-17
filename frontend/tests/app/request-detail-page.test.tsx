@@ -12,7 +12,7 @@ vi.mock("@/features/requests/data/requests-api", () => ({
   getRequestById: mocks.getRequestById,
 }));
 
-import RequestDetailPage from "@/app/requests/[id]/page";
+import RequestDetailPage, { generateMetadata } from "@/app/requests/[id]/page";
 
 const request = {
   id: "09f4d11d-6b5e-4f25-b17a-b9d0b7ad2fed",
@@ -69,6 +69,16 @@ describe("/requests/[id]", () => {
     } as never)).rejects.toThrow(loadFailure);
 
     expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it("loads the request only once when Next.js renders metadata and the dynamic page", async () => {
+    mocks.getRequestById.mockResolvedValue({ ...request, isOwner: false });
+    const props = { params: Promise.resolve({ id: request.id }) } as never;
+
+    await generateMetadata();
+    await RequestDetailPage(props);
+
+    expect(mocks.getRequestById).toHaveBeenCalledTimes(1);
   });
 
   it.each<Scenario>([
