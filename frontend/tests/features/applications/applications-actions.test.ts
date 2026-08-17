@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
   redirect: vi.fn(),
+  uploadImages: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
@@ -11,6 +12,7 @@ vi.mock("next/navigation", () => ({
     throw new Error(`NEXT_REDIRECT:${url}`);
   }),
 }));
+vi.mock("@/features/uploads/data/upload-images", () => ({ uploadImages: mocks.uploadImages }));
 
 import { applyToRequest, decideApplication } from "@/features/applications/actions/applications";
 
@@ -21,10 +23,18 @@ function applicationForm(offeredPrice = "700000", message = "동일 모델 재�
   return form;
 }
 
+function applicationFormWithImage() {
+  const form = applicationForm();
+  form.append("images", new File(["image"], "my-product.png", { type: "image/png" }));
+  return form;
+}
+
 describe("seller application actions", () => {
   beforeEach(() => {
     mocks.headers.mockReset();
     mocks.redirect.mockClear();
+    mocks.uploadImages.mockReset();
+    mocks.uploadImages.mockResolvedValue({ ok: true, images: [] });
     mocks.headers.mockResolvedValue(new Headers({
       host: "gamja.example",
       "x-forwarded-proto": "https",
@@ -65,6 +75,28 @@ describe("seller application actions", () => {
       credentials: "include",
       body: JSON.stringify({ offeredPrice: 700000, message: "동일 모델 재고가 있고 오늘 바로 거래할 수 있습니다." }),
     });
+  });
+
+  it("creates the application before uploading selected product images and redirects even when that upload fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "application-1",
+      requestId: "request-1",
+      offeredPrice: 700000,
+      message: "동일 모델 재고가 있고 오늘 바로 거래할 수 있습니다.",
+      status: "대기중",
+      createdAt: "2026-08-17T00:00:00.000Z",
+    }), { status: 201, headers: { "content-type": "application/json" } }));
+    mocks.uploadImages.mockResolvedValue({ ok: false, message: "사진 업로드에 실패했어요." });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(applyToRequest("request-1", applicationFormWithImage()))
+      .rejects.toThrow("NEXT_REDIRECT:/requests/request-1");
+
+    expect(mocks.uploadImages).toHaveBeenCalledWith(
+      "/api/applications/application-1/images",
+      [expect.any(File)],
+      "gm_session=abc",
+    );
   });
 
   it("redirects to login with the apply path preserved on an expired session", async () => {
