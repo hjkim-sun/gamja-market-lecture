@@ -9,6 +9,7 @@ export type AuthActionState =
   | { ok: false; message: string };
 
 const DUPLICATE_EMAIL_MESSAGE = "이미 사용 중인 이메일이에요.";
+const DUPLICATE_DISPLAY_NAME_MESSAGE = "이미 사용 중인 표시 이름이에요.";
 const SIGNUP_FAILED_MESSAGE = "회원가입을 완료하지 못했어요. 잠시 후 다시 시도해주세요.";
 const INVALID_CREDENTIALS_MESSAGE = "이메일 또는 비밀번호가 올바르지 않아요.";
 const LOGIN_FAILED_MESSAGE = "로그인하지 못했어요. 잠시 후 다시 시도해주세요.";
@@ -98,7 +99,23 @@ export async function signUp(formData: FormData): Promise<AuthActionState> {
     return { ok: false, message: SIGNUP_FAILED_MESSAGE };
   }
 
-  if (response.status === 409) return { ok: false, message: DUPLICATE_EMAIL_MESSAGE };
+  if (response.status === 409) {
+    const code = await response
+      .json()
+      .then((body: unknown) => (
+        typeof body === "object" && body !== null && "code" in body
+          ? (body as { code?: unknown }).code
+          : undefined
+      ))
+      .catch(() => undefined);
+
+    return {
+      ok: false,
+      message: code === "display_name_already_exists"
+        ? DUPLICATE_DISPLAY_NAME_MESSAGE
+        : DUPLICATE_EMAIL_MESSAGE,
+    };
+  }
   if (!response.ok) {
     if (response.status >= 500) {
       await logServerError(new Error(`Auth request failed with status ${response.status}`), {
