@@ -7,6 +7,7 @@ import {
   parseRequestForm,
   type RequestFormErrors,
 } from "@/features/requests/lib/request-input";
+import ImagePicker from "@/features/uploads/components/ImagePicker";
 
 export default function RequestForm() {
   const [pending, setPending] = useState(false);
@@ -126,6 +127,8 @@ export default function RequestForm() {
           <p className="text-xs text-red-600">{fieldErrors.description}</p>
         )}
       </div>
+
+      <ImagePicker />
 
       <button
         type="submit"

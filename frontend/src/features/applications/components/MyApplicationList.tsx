@@ -44,6 +44,21 @@ export default function MyApplicationList({ applications }: { applications: MyAp
             {application.message}
           </p>
           <p className="mt-2 text-xs text-[#b89a7c]">{application.createdAt} 지원</p>
+
+          {application.images && application.images.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {application.images.map((image) => (
+                <a key={image.id} href={image.url} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- signed Supabase URL, not a static next/image asset */}
+                  <img
+                    src={image.url}
+                    alt=""
+                    className="aspect-square w-full rounded-lg object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
         </li>
       ))}
     </ul>

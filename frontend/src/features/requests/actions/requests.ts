@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { parseRequestForm, type RequestFormErrors } from "@/features/requests/lib/request-input";
+import { collectImageFiles } from "@/features/uploads/lib/image-input";
+import { uploadImages } from "@/features/uploads/data/upload-images";
 import { getSameOriginRequest } from "@/lib/api/same-origin-request";
 import { logServerError } from "@/lib/logging/server";
 
@@ -61,5 +63,20 @@ export async function createRequest(formData: FormData): Promise<CreateRequestSt
   }
 
   const created = (await response.json()) as { id: string };
-  redirect(`/requests/${created.id}`);
+
+  // Photo upload is a non-destructive follow-up call (docs/specs/14-...design.md §1/§7.1):
+  // the request is already committed, so a failed upload never blocks the redirect below.
+  const imageFiles = collectImageFiles(formData);
+  let imageUploadFailed = false;
+  if (imageFiles.length > 0) {
+    try {
+      const uploadResult = await uploadImages(`/api/requests/${created.id}/images`, imageFiles, cookie);
+      imageUploadFailed = !uploadResult.ok;
+    } catch (error) {
+      await logServerError(error, { pathname: `/api/requests/${created.id}/images` });
+      imageUploadFailed = true;
+    }
+  }
+
+  redirect(imageUploadFailed ? `/requests/${created.id}?imageUploadFailed=1` : `/requests/${created.id}`);
 }

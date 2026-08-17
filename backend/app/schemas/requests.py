@@ -51,6 +51,21 @@ class PurchaseRequestOut(BaseModel):
     status: str
     description: str
     created_at: datetime = Field(alias="createdAt")
+    images: list["RequestImageOut"] = Field(default_factory=list)
+
+
+class RequestImageOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: UUID
+    url: str
+    sort_order: int = Field(alias="sortOrder")
+
+
+class RequestImageUploadOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    images: list[RequestImageOut]
 
 
 class PurchaseRequestDetailOut(PurchaseRequestOut):

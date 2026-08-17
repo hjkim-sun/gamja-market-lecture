@@ -51,6 +51,12 @@ export default async function MyRequestsPage() {
               key={request.id}
               className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-amber-200/60"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element -- thumbnail can be a Supabase URL, not a static next/image asset */}
+              <img
+                src={request.images?.[0]?.url ?? "/gamja-mascot.png"}
+                alt=""
+                className="aspect-video w-full rounded-xl object-cover"
+              />
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-600">{request.category}</span>
                 <StatusBadge status={request.status} />

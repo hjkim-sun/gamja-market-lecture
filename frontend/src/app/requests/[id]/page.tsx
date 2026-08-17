@@ -107,11 +107,15 @@ export default async function RequestDetailPage(
   props: PageProps<"/requests/[id]">,
 ) {
   const { id } = await props.params;
+  const searchParams = await props.searchParams;
   const request = await getRequestById(id);
 
   if (!request) {
     notFound();
   }
+
+  const images = request.images ?? [];
+  const imageUploadFailed = searchParams?.imageUploadFailed === "1";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -121,6 +125,12 @@ export default async function RequestDetailPage(
       >
         ← 목록으로
       </Link>
+
+      {imageUploadFailed && (
+        <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+          사진 업로드에 실패했지만 등록은 완료됐어요.
+        </p>
+      )}
 
       <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-amber-200/60 sm:p-8">
         <div className="flex items-center justify-between">
@@ -138,6 +148,21 @@ export default async function RequestDetailPage(
         <p className="mt-4 text-3xl font-extrabold text-[#d9822b]">
           {request.desiredPrice.toLocaleString()}원
         </p>
+
+        {images.length > 0 && (
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {images.map((image) => (
+              <a key={image.id} href={image.url} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element -- thumbnail is a Supabase URL, not a static next/image asset */}
+                <img
+                  src={image.url}
+                  alt=""
+                  className="aspect-square w-full rounded-xl object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        )}
 
         <div className="mt-6 border-t border-amber-100 pt-6">
           <h2 className="mb-2 text-sm font-bold text-[#4a2f1c]">

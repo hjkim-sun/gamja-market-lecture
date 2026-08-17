@@ -39,6 +39,21 @@ class ApplicationOut(BaseModel):
     message: str
     status: str
     created_at: datetime = Field(alias="createdAt")
+    images: list["ApplicationImageOut"] = Field(default_factory=list)
+
+
+class ApplicationImageOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: UUID
+    url: str
+    sort_order: int = Field(alias="sortOrder")
+
+
+class ApplicationImageUploadOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    images: list[ApplicationImageOut]
 
 
 class OwnerApplicationOut(BaseModel):
@@ -50,6 +65,7 @@ class OwnerApplicationOut(BaseModel):
     message: str
     status: str
     created_at: datetime = Field(alias="createdAt")
+    images: list[ApplicationImageOut] = Field(default_factory=list)
 
 
 class MyApplicationOut(ApplicationOut):
