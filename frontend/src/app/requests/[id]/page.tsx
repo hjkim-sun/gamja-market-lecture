@@ -24,15 +24,15 @@ const SECONDARY_LINK_CLASS =
 function ApplicationAction({ request }: { request: PurchaseRequest }): ReactNode {
   if (request.isOwner) {
     if (request.status === "모집중") {
-      const applicationCount = request.applicationCount ?? 0;
+      const applicationCount = request.applicationCount;
       return (
         <>
           <button type="button" disabled className={DISABLED_BUTTON_CLASS}>
             내가 등록한 요청이에요
           </button>
-          {applicationCount > 0 && (
+          {applicationCount !== 0 && (
             <Link href={`/requests/${request.id}/applications`} className={SECONDARY_LINK_CLASS}>
-              지원자 보기 ({applicationCount})
+              {typeof applicationCount === "number" ? `지원자 보기 (${applicationCount})` : "지원자 보기"}
             </Link>
           )}
         </>
@@ -44,7 +44,7 @@ function ApplicationAction({ request }: { request: PurchaseRequest }): ReactNode
         <p className="mt-8 text-center text-sm font-semibold text-[#6b5540]">
           매칭된 판매자와 대화 중이에요
         </p>
-        <Link href={`/chats/${request.chatThreadId}`} className={CTA_BUTTON_CLASS}>
+        <Link href={request.viewerChatThreadId ? `/chats/${request.viewerChatThreadId}` : "/chats"} className={CTA_BUTTON_CLASS}>
           채팅으로 이동
         </Link>
       </>
@@ -84,7 +84,7 @@ function ApplicationAction({ request }: { request: PurchaseRequest }): ReactNode
 
   if (viewerApplicationStatus === "수락됨") {
     return (
-      <Link href={`/chats/${request.chatThreadId}`} className={CTA_BUTTON_CLASS}>
+      <Link href={request.viewerChatThreadId ? `/chats/${request.viewerChatThreadId}` : "/chats"} className={CTA_BUTTON_CLASS}>
         채팅으로 이동
       </Link>
     );

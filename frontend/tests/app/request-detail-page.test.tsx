@@ -26,7 +26,7 @@ type ViewerRequest = Omit<typeof request, "status"> & {
   status: PurchaseRequest["status"];
   isOwner: boolean;
   applicationCount?: number;
-  chatThreadId?: string | null;
+  viewerChatThreadId?: string | null;
   viewerApplicationStatus?: "대기중" | "수락됨" | "거절됨" | null;
 };
 
@@ -62,8 +62,14 @@ describe("/requests/[id]", () => {
     ],
     [
       "owner of a matched request",
-      { ...request, isOwner: true, status: "협의중" as const, chatThreadId: "thread-1" },
+      { ...request, isOwner: true, status: "협의중" as const, viewerChatThreadId: "thread-1" },
       ["매칭된 판매자와 대화 중이에요", "채팅으로 이동", "/chats/thread-1"],
+      ["이 요청에 지원하기"],
+    ],
+    [
+      "owner of a matched request whose chat thread id the backend has not resolved",
+      { ...request, isOwner: true, status: "협의중" as const },
+      ["매칭된 판매자와 대화 중이에요", "채팅으로 이동", "href=\"/chats\""],
       ["이 요청에 지원하기"],
     ],
     [
@@ -86,7 +92,7 @@ describe("/requests/[id]", () => {
     ],
     [
       "non-owner with an accepted application",
-      { ...request, isOwner: false, viewerApplicationStatus: "수락됨" as const, chatThreadId: "thread-2" },
+      { ...request, isOwner: false, viewerApplicationStatus: "수락됨" as const, viewerChatThreadId: "thread-2" },
       ["채팅으로 이동", "/chats/thread-2"],
       ["/apply"],
     ],
