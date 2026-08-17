@@ -86,7 +86,12 @@ export async function signUp(formData: FormData): Promise<AuthActionState> {
         ...(cookie ? { Cookie: cookie } : {}),
       },
       credentials: "include",
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify({
+        email: parsed.data.email,
+        password: parsed.data.password,
+        password_confirmation: parsed.data.passwordConfirmation,
+        display_name: parsed.data.displayName,
+      }),
     });
   } catch (error) {
     await logServerError(error, { pathname: "/api/auth/signup" });

@@ -9,7 +9,7 @@ import AuthShell from "@/features/auth/components/AuthShell";
 import AuthSubmitButton from "@/features/auth/components/AuthSubmitButton";
 import FormAlert from "@/features/auth/components/FormAlert";
 
-type FieldErrors = Partial<Record<"email" | "password", string>>;
+type FieldErrors = Partial<Record<"email" | "displayName" | "password" | "passwordConfirmation", string>>;
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -21,8 +21,11 @@ export default function SignUpForm() {
   const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
+  const displayNameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const validationMessage = fieldErrors.email || fieldErrors.password;
+  const passwordConfirmationRef = useRef<HTMLInputElement>(null);
+  const validationMessage =
+    fieldErrors.email || fieldErrors.displayName || fieldErrors.password || fieldErrors.passwordConfirmation;
 
   function clearFieldError(field: keyof FieldErrors) {
     setFieldErrors((current) => {
@@ -35,7 +38,13 @@ export default function SignUpForm() {
   }
 
   function focusFirstError(errors: FieldErrors) {
-    const target = errors.email ? emailRef.current : passwordRef.current;
+    const target = errors.email
+      ? emailRef.current
+      : errors.displayName
+        ? displayNameRef.current
+        : errors.password
+          ? passwordRef.current
+          : passwordConfirmationRef.current;
     target?.focus();
   }
 
@@ -43,11 +52,19 @@ export default function SignUpForm() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "").trim();
+    const displayName = String(formData.get("displayName") ?? "").trim();
     const password = String(formData.get("password") ?? "");
+    const passwordConfirmation = String(formData.get("passwordConfirmation") ?? "");
     const errors: FieldErrors = {};
 
     if (!isValidEmail(email)) errors.email = "이메일 주소를 확인해주세요.";
+    if (displayName.length < 1 || displayName.length > 40) {
+      errors.displayName = "표시 이름은 1자 이상 40자 이하로 입력해주세요.";
+    }
     if (password.length < 8) errors.password = "비밀번호는 8자 이상 입력해주세요.";
+    if (!errors.password && passwordConfirmation !== password) {
+      errors.passwordConfirmation = "비밀번호가 일치하지 않아요.";
+    }
 
     if (Object.keys(errors).length) {
       setFormError("");
@@ -97,6 +114,17 @@ export default function SignUpForm() {
           onChange={() => clearFieldError("email")}
         />
         <AuthField
+          name="displayName"
+          label="표시 이름"
+          placeholder="예: 날아오르는 감자"
+          helpText="다른 사용자에게 보여질 이름이에요. (1~40자)"
+          error={fieldErrors.displayName}
+          disabled={pending}
+          autoComplete="nickname"
+          inputRef={displayNameRef}
+          onChange={() => clearFieldError("displayName")}
+        />
+        <AuthField
           name="password"
           label="비밀번호"
           type="password"
@@ -108,6 +136,18 @@ export default function SignUpForm() {
           minLength={8}
           inputRef={passwordRef}
           onChange={() => clearFieldError("password")}
+        />
+        <AuthField
+          name="passwordConfirmation"
+          label="비밀번호 확인"
+          type="password"
+          placeholder="비밀번호를 다시 입력"
+          helpText="비밀번호를 한 번 더 입력해주세요."
+          error={fieldErrors.passwordConfirmation}
+          disabled={pending}
+          autoComplete="new-password"
+          inputRef={passwordConfirmationRef}
+          onChange={() => clearFieldError("passwordConfirmation")}
         />
         <AuthSubmitButton idleLabel="회원가입" pendingLabel="가입하는 중…" pending={pending} />
       </form>
