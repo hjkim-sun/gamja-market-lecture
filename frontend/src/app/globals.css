@@ -48,8 +48,8 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .gm-account-wrap { position: relative; }
 .gm-account-button { border: 0; background: transparent; cursor: pointer; }
 .gm-account-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 148px; padding: 6px; border: 1px solid var(--gm-border); border-radius: 12px; background: white; box-shadow: 0 8px 24px rgb(107 63 29 / .12); }
-.gm-account-menu button { width: 100%; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--gm-brown); text-align: left; padding: 8px 10px; font-weight: 600; cursor: pointer; }
-.gm-account-menu button:hover { background: var(--gm-amber-soft); }
+.gm-account-menu a, .gm-account-menu button { display: flex; width: 100%; min-height: 44px; align-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--gm-brown); text-align: left; padding: 8px 10px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.gm-account-menu a:hover, .gm-account-menu button:hover { background: var(--gm-amber-soft); }
 .gm-mobile-menu-button, .gm-mobile-menu-layer { display: none; }
 .gm-auth-wrap { display: flex; width: min(100% - 32px, 768px); align-items: flex-start; gap: 24px; margin: 0 auto; padding: 48px 0; }
 .gm-auth-card { width: 440px; min-width: 0; padding: 32px; border-radius: 16px; background: var(--gm-surface); box-shadow: 0 8px 24px rgb(107 63 29 / .1); }
