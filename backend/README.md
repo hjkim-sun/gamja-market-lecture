@@ -5,13 +5,20 @@ FastAPI 애플리케이션과 Supabase PostgreSQL 마이그레이션을 관리�
 ## 실행
 
 ```bash
+cd ..
+scripts/db-local.sh up
+cd backend
 uv sync --extra dev
-cp .env.example .env  # 최초 1회, 실제 로컬 비밀번호로 수정
+cp .env.example .env  # 최초 1회, 필요하면 로컬 전용 값만 수정
 cd ..
 scripts/dev.sh backend start
 ```
 
 `scripts/dev.sh backend start`는 백엔드를 시작하기 전에 `backend/.env`를 읽어 해당 프로세스에만 환경 변수를 전달합니다. `DATABASE_URL`은 PostgreSQL에 데이터를 영속화하려면 필요하며, `.env`에는 실제 비밀번호나 운영 자격 증명을 저장소에 넣지 마세요. 로컬 파일은 Git에서 명시적으로 제외되고, 공유할 설정 형식은 `.env.example`에만 유지합니다.
+
+`scripts/db-local.sh up`은 PostgreSQL 17의 빈 로컬 데이터베이스를 시작하고, `supabase/migrations` 중 순정 PostgreSQL에서 실행 가능한 파일을 파일명 순서로 적용합니다. `auth.users` 또는 `storage.buckets`처럼 Supabase 서비스에 의존하는 파일은 `supabase/migrations/local-migration-exclusions.tsv`의 검토된 목록으로만 제외됩니다. 새 Supabase 전용 마이그레이션은 이 목록에 사유와 함께 추가하기 전까지 실패하므로 로컬 스키마가 조용히 뒤처지지 않습니다.
+
+로컬 컨테이너는 `anon`과 `authenticated` NOLOGIN 역할만 스텁으로 만듭니다. 이는 기존 SQL의 권한 구문을 실행하기 위한 것이며 Supabase Auth, GoTrue, Storage를 대체하지는 않습니다. 따라서 이메일 인증과 이미지 스토리지 연동은 계속 호스티드 Supabase 또는 별도 전체 Supabase 스택에서 검증해야 합니다. `down`은 로컬 Compose 데이터 볼륨을 보존하고, 파괴적인 `reset`은 이 컨트롤러의 Compose 프로젝트와 볼륨에만 범위를 제한합니다.
 
 로그인 세션은 기본 7일(`SESSION_TTL_SECONDS=604800`)이며 브라우저에는 `gm_session` HttpOnly 쿠키로만 전달됩니다. 로컬 HTTP 개발에서는 `SESSION_COOKIE_SECURE=false`를 사용하고, `APP_ENV=production` 또는 `VERCEL=1` 환경은 이 값과 무관하게 Secure 쿠키를 강제합니다. 데이터베이스에는 쿠키 원문 대신 SHA-256 해시만 저장됩니다.
 

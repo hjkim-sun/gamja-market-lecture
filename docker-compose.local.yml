@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: gamja_market
+      POSTGRES_USER: postgres
+      # This is a local-only development credential. It is never read from
+      # backend/.env, which may contain a hosted Supabase connection string.
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gamja_market"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

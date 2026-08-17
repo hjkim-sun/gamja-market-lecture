@@ -1,0 +1,7 @@
+# filename<TAB>reason
+#
+# This is intentionally a small, reviewed allow-list. db-local.sh validates
+# every entry and refuses to apply a migration with a known Supabase-only
+# reference unless its filename and reason are recorded here.
+20260816121000_create_profiles_auth_layer.sql	Depends on Supabase Auth's auth.users schema and auth.uid().
+20260817100000_create_image_storage_buckets.sql	Depends on Supabase Storage's storage.buckets table.

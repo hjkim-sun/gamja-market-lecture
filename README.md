@@ -42,6 +42,18 @@ scripts/dev.sh <backend|frontend|all> <start|stop|restart>
 
 상태 파일과 리디렉션된 출력은 추적하지 않는 `.runtime/dev/`에 저장됩니다. 서비스는 `nohup`과 `python3`의 새 세션으로 분리되어 명령을 실행한 터미널을 닫아도 계속 실행되며, 시작 전 포트 `8000`(backend)과 `3000`(frontend)의 다른 점유자를 확인해 점유자를 종료하지 않고 시작을 거부합니다.
 
+### 로컬 PostgreSQL
+
+Docker가 준비되어 있으면 호스티드 Supabase와 분리된 PostgreSQL 17 데이터베이스를 시작할 수 있습니다.
+
+```bash
+scripts/db-local.sh up
+```
+
+기본 연결은 `postgresql://postgres:postgres@localhost:5432/gamja_market`입니다. `backend/.env`의 `DATABASE_URL`을 이 값으로 **수동으로** 설정한 뒤 백엔드를 시작하세요. 이 도구는 `backend/.env`를 읽거나 변경하지 않으므로, Vercel 및 기존 Supabase 환경 변수에는 영향을 주지 않습니다. `POSTGRES_PORT=55432 scripts/db-local.sh up`처럼 포트를 바꿀 수 있습니다.
+
+`down`은 이 Compose 프로젝트의 컨테이너만 멈추고 데이터를 보존합니다. `reset`은 같은 Compose 프로젝트의 볼륨만 삭제한 뒤 빈 데이터베이스와 이식 가능한 마이그레이션을 다시 만들며, `migrate`는 아직 적용되지 않은 마이그레이션만 적용하고 `status`는 상태와 적용 이력을 표시합니다.
+
 ### Vercel 환경 변수 동기화
 
 각 Git worktree는 primary checkout에 이미 준비된 환경 파일을 다음 명령으로 복사해 사용합니다.
