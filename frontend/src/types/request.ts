@@ -8,4 +8,5 @@ export type PurchaseRequest = {
   category: RequestCategory;
   createdAt: string;
   description: string;
+  isOwner: boolean;
 };

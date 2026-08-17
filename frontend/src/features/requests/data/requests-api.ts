@@ -15,12 +15,19 @@ export async function getRequests(): Promise<PurchaseRequest[]> {
   return (await response.json()) as PurchaseRequest[];
 }
 
-/** Fetches a single purchase request. Returns `null` when it does not exist (404) or on failure. */
+/**
+ * Fetches a single purchase request. Returns `null` when it does not exist (404) or on failure.
+ * Forwards the incoming request's cookies so the backend can identify the authenticated
+ * viewer and report whether they own the request.
+ */
 export async function getRequestById(id: string): Promise<PurchaseRequest | null> {
-  const { url } = await getSameOriginRequest(`/api/requests/${encodeURIComponent(id)}`);
+  const { cookie, url } = await getSameOriginRequest(`/api/requests/${encodeURIComponent(id)}`);
   let response: Response;
   try {
-    response = await fetch(url, { cache: "no-store" });
+    response = await fetch(url, {
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
   } catch {
     return null;
   }

@@ -56,13 +56,23 @@ export default async function RequestDetailPage(
           </p>
         </div>
 
-        <button
-          type="button"
-          title="판매자 지원 기능은 이후 단계에서 열려요"
-          className="mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base"
-        >
-          이 요청에 지원하기
-        </button>
+        {request.isOwner ? (
+          <button
+            type="button"
+            disabled
+            className="mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base"
+          >
+            내가 등록한 요청이에요
+          </button>
+        ) : (
+          <button
+            type="button"
+            title="판매자 지원 기능은 이후 단계에서 열려요"
+            className="mt-8 w-full cursor-not-allowed rounded-full bg-amber-400/60 px-6 py-3 text-sm font-bold text-[#6b3f1d]/70 sm:text-base"
+          >
+            이 요청에 지원하기
+          </button>
+        )}
       </div>
     </div>
   );
