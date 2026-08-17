@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
-# Pull a linked Vercel project's environment variables for local development.
+# Copy already-synced environment files from this repository's primary checkout.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENVIRONMENT='development'
 TARGETS=(
   "$ROOT_DIR/backend/.env"
   "$ROOT_DIR/frontend/.env.local"
 )
-BACKUPS=()
-EXISTED=()
+SOURCES=()
+TEMP_FILES=()
 
 usage() {
   cat <<'EOF'
-Usage: pull-vercel-env.sh [--environment <development|preview|production>]
+Usage: pull-vercel-env.sh
 
-Pull variables from the linked Vercel project into backend/.env and
-frontend/.env.local. The default environment is development.
-
-Options:
-  -e, --environment ENV     Vercel environment to pull
-  -h, --help                Show this help
+Copy backend/.env and frontend/.env.local from the primary Git checkout into
+the current checkout. The primary checkout must already contain both files.
 EOF
 }
 
@@ -37,100 +32,105 @@ parse_args() {
         usage
         exit 0
         ;;
-      -e|--environment)
-        (( $# >= 2 )) || fail_usage "missing value for $1"
-        ENVIRONMENT="$2"
-        shift 2
-        ;;
-      -e=*|--environment=*)
-        ENVIRONMENT="${1#*=}"
-        shift
-        ;;
       *)
         fail_usage "unknown argument: $1"
         ;;
     esac
   done
-
-  case "$ENVIRONMENT" in
-    development|preview|production) ;;
-    '') fail_usage 'environment must not be empty' ;;
-    *) fail_usage "invalid environment: $ENVIRONMENT (expected development, preview, or production)" ;;
-  esac
 }
 
-require_vercel() {
-  if ! command -v vercel >/dev/null 2>&1; then
-    printf 'Vercel CLI is required. Install it with: npm install --global vercel\n' >&2
-    exit 127
+cleanup_temps() {
+  local temp
+  for temp in "${TEMP_FILES[@]}"; do
+    [[ -z "$temp" ]] || rm -f "$temp"
+  done
+}
+
+find_primary_checkout() {
+  local line primary=''
+
+  if ! git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'Unable to locate the primary Git checkout: this script must run from a Git worktree.\n' >&2
+    return 1
   fi
+
+  # `git worktree list --porcelain` lists the repository's primary checkout
+  # first. It also scopes the result to the current checkout's shared Git dir.
+  while IFS= read -r line; do
+    case "$line" in
+      'worktree '*)
+        primary="${line#worktree }"
+        break
+        ;;
+    esac
+  done < <(git -C "$ROOT_DIR" worktree list --porcelain 2>/dev/null)
+
+  if [[ -z "$primary" || ! -d "$primary" ]]; then
+    printf 'Unable to locate the primary Git checkout; target environment files were preserved.\n' >&2
+    return 1
+  fi
+
+  SOURCES=(
+    "$primary/backend/.env"
+    "$primary/frontend/.env.local"
+  )
 }
 
-prepare_backups() {
-  local target backup
-  for target in "${TARGETS[@]}"; do
-    if [[ -e "$target" ]]; then
-      backup="$(mktemp "${target}.backup.XXXXXX")"
-      cp -p "$target" "$backup"
-      BACKUPS+=("$backup")
-      EXISTED+=(1)
-    else
-      BACKUPS+=('')
-      EXISTED+=(0)
-    fi
-  done
-}
-
-discard_backups() {
-  local backup
-  for backup in "${BACKUPS[@]}"; do
-    [[ -z "$backup" ]] || rm -f "$backup"
-  done
-}
-
-restore_targets() {
-  local index target backup
-  for index in "${!TARGETS[@]}"; do
+validate_sources() {
+  local index source target
+  for index in "${!SOURCES[@]}"; do
+    source="${SOURCES[$index]}"
     target="${TARGETS[$index]}"
-    backup="${BACKUPS[$index]}"
-    if [[ "${EXISTED[$index]}" == 1 ]]; then
-      mv -f "$backup" "$target"
-    else
-      rm -f "$target"
+
+    if [[ ! -f "$source" || ! -r "$source" ]]; then
+      printf 'Primary checkout environment source is unavailable for %s; target files were preserved.\n' \
+        "$(basename "$target")" >&2
+      return 1
+    fi
+    if [[ ! -d "$(dirname "$target")" ]]; then
+      printf 'Target directory is unavailable for %s; target files were preserved.\n' \
+        "$(basename "$target")" >&2
+      return 1
     fi
   done
 }
 
-pull_target() {
-  local target="$1"
+stage_copies() {
+  local index source target temp
+  for index in "${!SOURCES[@]}"; do
+    source="${SOURCES[$index]}"
+    target="${TARGETS[$index]}"
+    temp="$(mktemp "${target}.tmp.XXXXXX")"
+    TEMP_FILES+=("$temp")
 
-  # Keep the CLI's output out of the terminal: it must never reveal local
-  # environment-file contents or credentials.
-  vercel env pull "$target" --environment "$ENVIRONMENT" --yes >/dev/null 2>&1
+    if ! cp -p "$source" "$temp"; then
+      printf 'Failed to stage environment files from the primary checkout; target files were preserved.\n' >&2
+      return 1
+    fi
+  done
+}
+
+commit_copies() {
+  local index temp target
+  for index in "${!TARGETS[@]}"; do
+    temp="${TEMP_FILES[$index]}"
+    target="${TARGETS[$index]}"
+    if ! mv -f "$temp" "$target"; then
+      printf 'Failed to replace %s with the staged environment file.\n' "$(basename "$target")" >&2
+      return 1
+    fi
+    TEMP_FILES[$index]=''
+  done
 }
 
 main() {
   parse_args "$@"
-  require_vercel
-
-  # Vercel resolves the existing .vercel link from the repository root, not
-  # from the caller's current directory.
-  cd "$ROOT_DIR"
-  prepare_backups
-
-  local target
-  for target in "${TARGETS[@]}"; do
-    if ! pull_target "$target"; then
-      restore_targets
-      printf 'Failed to pull Vercel %s environment variables; existing files were preserved.\n' \
-        "$ENVIRONMENT" >&2
-      return 1
-    fi
-  done
-
-  discard_backups
-  printf 'Pulled Vercel %s environment variables into backend/.env and frontend/.env.local.\n' \
-    "$ENVIRONMENT"
+  find_primary_checkout
+  validate_sources
+  stage_copies
+  commit_copies
+  printf 'Copied environment files from the primary Git checkout.\n'
 }
 
+trap cleanup_temps EXIT
 main "$@"
