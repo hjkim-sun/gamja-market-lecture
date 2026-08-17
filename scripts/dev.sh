@@ -3,7 +3,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE_DIR="${DEV_STATE_DIR:-$ROOT_DIR/.runtime/dev}"
+if [[ -n "${DEV_STATE_DIR:-}" ]]; then
+  STATE_DIR="$DEV_STATE_DIR"
+else
+  GIT_COMMON_DIR="$(git -C "$ROOT_DIR" rev-parse --path-format=absolute --git-common-dir)"
+  REPOSITORY_ROOT="$(dirname "$GIT_COMMON_DIR")"
+  STATE_DIR="$REPOSITORY_ROOT/.runtime/dev"
+fi
 LOG_DIR="$STATE_DIR/logs"
 
 usage() {
@@ -24,6 +30,31 @@ pid_file() {
 is_running() {
   local pid="$1"
   [[ "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null
+}
+
+is_own_process_group_leader() {
+  local pid="$1" process_group_id
+
+  # Services launched by detach_and_exec() become the leader of a dedicated
+  # session and process group.  Only address a negative PID when that remains
+  # true: a legacy PID file can point at a process in the caller's group, and
+  # killing that group would be unsafe.
+  process_group_id="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]')" || return 1
+  [[ "$process_group_id" == "$pid" ]]
+}
+
+tracked_termination_target() {
+  local pid="$1"
+
+  if is_own_process_group_leader "$pid"; then
+    # A negative PID targets the service's complete process group, including
+    # reloaders and other descendants that can retain the service port.
+    printf -- '-%s\n' "$pid"
+  else
+    # PID files from before session-based startup remain supported, but can
+    # only be terminated one process at a time without risking this shell.
+    printf '%s\n' "$pid"
+  fi
 }
 
 read_tracked_pid() {
@@ -134,7 +165,7 @@ start_service() {
 }
 
 stop_service() {
-  local service="$1" pid_file_path pid
+  local service="$1" pid_file_path pid termination_target
   pid_file_path="$(pid_file "$service")"
 
   if ! pid="$(read_tracked_pid "$service")"; then
@@ -142,10 +173,13 @@ stop_service() {
     return 0
   fi
 
-  kill "$pid" 2>/dev/null || true
+  termination_target="$(tracked_termination_target "$pid")"
+  kill -TERM -- "$termination_target" 2>/dev/null || true
   local attempt
   for attempt in {1..40}; do
-    if ! is_running "$pid"; then
+    # For controller-owned sessions, wait for the whole group rather than
+    # merely its leader so restart cannot race a child still holding the port.
+    if ! kill -0 -- "$termination_target" 2>/dev/null; then
       rm -f "$pid_file_path"
       printf 'Stopped %s (PID %s).\n' "$service" "$pid"
       return 0

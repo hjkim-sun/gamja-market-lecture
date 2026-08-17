@@ -96,6 +96,40 @@ track_pid() {
   TRACKED_PIDS+=("$1")
 }
 
+start_tracked_parent_with_port_child() {
+  local service="$1"
+  local child_pid_file="$STATE_DIR/$service.port-holder.pid"
+
+  python3 -c '
+import os
+import sys
+import time
+
+os.setsid()
+child_pid = os.fork()
+if child_pid == 0:
+    time.sleep(600)
+    raise SystemExit(0)
+
+with open(sys.argv[1], "w", encoding="utf-8") as child_pid_file:
+    child_pid_file.write(f"{child_pid}\n")
+os.waitpid(child_pid, 0)
+' "$child_pid_file" &
+  TRACKED_PARENT_PID=$!
+
+  local attempt
+  for attempt in {1..20}; do
+    if [[ -f "$child_pid_file" ]]; then
+      TRACKED_CHILD_PID="$(<"$child_pid_file")"
+      return
+    fi
+    sleep 0.05
+  done
+
+  fail "$service fixture must create a port-holding child process"
+  TRACKED_CHILD_PID=''
+}
+
 write_fake_commands() {
   write_fake_service_command() {
     local command_name="$1"
@@ -116,6 +150,18 @@ write_fake_commands() {
     "  printf 'mock process holds requested port\\n'" \
     '  exit 0' \
     'fi' \
+    'case "$*" in' \
+    '  *-iTCP:8000*) holder_file="${DEV_TEST_PORT_HOLDER_DIR}/backend.port-holder.pid" ;;' \
+    '  *-iTCP:3000*) holder_file="${DEV_TEST_PORT_HOLDER_DIR}/frontend.port-holder.pid" ;;' \
+    '  *) exit 1 ;;' \
+    'esac' \
+    'if [[ -f "$holder_file" ]]; then' \
+    '  holder_pid="$(<"$holder_file")"' \
+    '  if kill -0 "$holder_pid" 2>/dev/null; then' \
+    '    printf "%s\\n" "$holder_pid"' \
+    '    exit 0' \
+    '  fi' \
+    'fi' \
     'exit 1' > "$FAKE_BIN/lsof"
   chmod +x "$FAKE_BIN/lsof"
 }
@@ -124,6 +170,7 @@ run_dev() {
   PATH="$FAKE_BIN:$PATH" \
     DEV_STATE_DIR="$STATE_DIR" \
     DEV_TEST_LOG_DIR="$LOG_DIR" \
+    DEV_TEST_PORT_HOLDER_DIR="$STATE_DIR" \
     "$DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
 }
 
@@ -131,6 +178,7 @@ run_dev_with_conflict() {
   PATH="$FAKE_BIN:$PATH" \
     DEV_STATE_DIR="$STATE_DIR" \
     DEV_TEST_LOG_DIR="$LOG_DIR" \
+    DEV_TEST_PORT_HOLDER_DIR="$STATE_DIR" \
     DEV_TEST_PORT_CONFLICT=1 \
     "$DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
 }
@@ -140,8 +188,38 @@ run_dev_with_backend_env_file() {
     PATH="$FAKE_BIN:$PATH" \
     DEV_STATE_DIR="$STATE_DIR" \
     DEV_TEST_LOG_DIR="$LOG_DIR" \
+    DEV_TEST_PORT_HOLDER_DIR="$STATE_DIR" \
     DEV_BACKEND_ENV_FILE="$BACKEND_ENV_FILE" \
     "$DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
+}
+
+# The production default must survive switching Git worktrees.  Exercise that
+# behavior in an isolated repository so this test never touches this checkout's
+# shared runtime state.
+DEFAULT_REPO="$TEST_TMP/default-state-repo"
+DEFAULT_WORKTREE="$TEST_TMP/default-state-worktree"
+DEFAULT_DEV_SCRIPT="$DEFAULT_WORKTREE/scripts/dev.sh"
+
+create_default_state_worktree() {
+  mkdir -p "$DEFAULT_REPO/backend" "$DEFAULT_REPO/frontend" "$DEFAULT_REPO/scripts"
+  ln -s "$DEV_SCRIPT" "$DEFAULT_REPO/scripts/dev.sh"
+  : > "$DEFAULT_REPO/README.md"
+  : > "$DEFAULT_REPO/backend/.gitkeep"
+  : > "$DEFAULT_REPO/frontend/.gitkeep"
+
+  git init -q "$DEFAULT_REPO" || return 1
+  git -C "$DEFAULT_REPO" config user.email 'dev-service-test@example.invalid' || return 1
+  git -C "$DEFAULT_REPO" config user.name 'Dev Service Test' || return 1
+  git -C "$DEFAULT_REPO" add README.md backend/.gitkeep frontend/.gitkeep scripts/dev.sh || return 1
+  git -C "$DEFAULT_REPO" commit -qm 'fixture' || return 1
+  git -C "$DEFAULT_REPO" worktree add --detach -q "$DEFAULT_WORKTREE" || return 1
+}
+
+run_dev_with_default_state_dir() {
+  PATH="$FAKE_BIN:$PATH" \
+    DEV_TEST_LOG_DIR="$LOG_DIR" \
+    DEV_TEST_PORT_HOLDER_DIR="$DEFAULT_STATE_DIR" \
+    "$DEFAULT_DEV_SCRIPT" "$@" >"$LOG_DIR/last-command.out" 2>&1
 }
 
 if [[ ! -f "$DEV_SCRIPT" ]]; then
@@ -155,6 +233,38 @@ if [[ ! -x "$DEV_SCRIPT" ]]; then
 fi
 
 write_fake_commands
+
+# With no DEV_STATE_DIR override, PID state belongs below the repository root
+# that contains Git's common directory, rather than below the linked worktree
+# that happens to invoke the script.  The ordinary helpers below still set
+# DEV_STATE_DIR, preserving explicit-override coverage for isolated command
+# tests.
+if ! create_default_state_worktree; then
+  fail "default-state fixture must create an isolated linked Git worktree"
+else
+  DEFAULT_GIT_COMMON_DIR="$(git -C "$DEFAULT_WORKTREE" rev-parse --path-format=absolute --git-common-dir)"
+  DEFAULT_REPOSITORY_ROOT="$(dirname "$DEFAULT_GIT_COMMON_DIR")"
+  DEFAULT_STATE_DIR="$DEFAULT_REPOSITORY_ROOT/.runtime/dev"
+  DEFAULT_BACKEND_PID_FILE="$DEFAULT_STATE_DIR/backend.pid"
+  WORKTREE_BACKEND_PID_FILE="$DEFAULT_WORKTREE/.runtime/dev/backend.pid"
+
+  if ! run_dev_with_default_state_dir backend start; then
+    fail "backend start must succeed using the default shared state directory"
+  fi
+  assert_file "$DEFAULT_BACKEND_PID_FILE"
+  assert_not_file "$WORKTREE_BACKEND_PID_FILE"
+  if [[ -f "$DEFAULT_BACKEND_PID_FILE" ]]; then
+    DEFAULT_BACKEND_PID="$(<"$DEFAULT_BACKEND_PID_FILE")"
+    track_pid "$DEFAULT_BACKEND_PID"
+    assert_pid_running "$DEFAULT_BACKEND_PID" \
+      "default shared state must track the running backend PID"
+  fi
+  if ! run_dev_with_default_state_dir backend stop; then
+    fail "backend stop must use the default shared state directory"
+  fi
+  assert_not_file "$DEFAULT_BACKEND_PID_FILE"
+  assert_not_file "$WORKTREE_BACKEND_PID_FILE"
+fi
 
 # A backend start runs the documented Uvicorn command from backend/, writes its PID,
 # and leaves that tracked PID alive for a later stop/restart action.
@@ -255,6 +365,49 @@ if ! run_dev frontend stop || ! run_dev frontend stop; then
   fail "frontend stop must be idempotent"
 fi
 assert_not_file "$FRONTEND_PID_FILE"
+
+# Restarting all services must also terminate descendants of the PIDs stored in
+# state. Otherwise those descendants keep their ports open and prevent either
+# replacement service from starting.
+rm -f "$LOG_DIR/commands.log" "$BACKEND_PID_FILE" "$FRONTEND_PID_FILE" \
+  "$STATE_DIR/backend.port-holder.pid" "$STATE_DIR/frontend.port-holder.pid"
+start_tracked_parent_with_port_child backend
+OLD_BACKEND_PARENT="$TRACKED_PARENT_PID"
+OLD_BACKEND_CHILD="$TRACKED_CHILD_PID"
+track_pid "$OLD_BACKEND_PARENT"
+track_pid "$OLD_BACKEND_CHILD"
+printf '%s\n' "$OLD_BACKEND_PARENT" > "$BACKEND_PID_FILE"
+assert_pid_running "$OLD_BACKEND_CHILD" "backend fixture child must hold port 8000"
+
+start_tracked_parent_with_port_child frontend
+OLD_FRONTEND_PARENT="$TRACKED_PARENT_PID"
+OLD_FRONTEND_CHILD="$TRACKED_CHILD_PID"
+track_pid "$OLD_FRONTEND_PARENT"
+track_pid "$OLD_FRONTEND_CHILD"
+printf '%s\n' "$OLD_FRONTEND_PARENT" > "$FRONTEND_PID_FILE"
+assert_pid_running "$OLD_FRONTEND_CHILD" "frontend fixture child must hold port 3000"
+
+if ! run_dev all restart; then
+  fail "all restart must succeed when its tracked parents have port-holding children"
+fi
+assert_pid_stopped "$OLD_BACKEND_PARENT" "all restart must stop the prior backend parent"
+assert_pid_stopped "$OLD_BACKEND_CHILD" "all restart must stop the prior backend port-holding child"
+assert_pid_stopped "$OLD_FRONTEND_PARENT" "all restart must stop the prior frontend parent"
+assert_pid_stopped "$OLD_FRONTEND_CHILD" "all restart must stop the prior frontend port-holding child"
+assert_file "$BACKEND_PID_FILE"
+assert_file "$FRONTEND_PID_FILE"
+if [[ -f "$BACKEND_PID_FILE" && -f "$FRONTEND_PID_FILE" ]]; then
+  NEW_BACKEND_PID="$(<"$BACKEND_PID_FILE")"
+  NEW_FRONTEND_PID="$(<"$FRONTEND_PID_FILE")"
+  track_pid "$NEW_BACKEND_PID"
+  track_pid "$NEW_FRONTEND_PID"
+  assert_pid_running "$NEW_BACKEND_PID" "all restart must track a replacement backend process"
+  assert_pid_running "$NEW_FRONTEND_PID" "all restart must track a replacement frontend process"
+  [[ "$OLD_BACKEND_PARENT" != "$NEW_BACKEND_PID" ]] || fail "all restart must replace the backend PID"
+  [[ "$OLD_FRONTEND_PARENT" != "$NEW_FRONTEND_PID" ]] || fail "all restart must replace the frontend PID"
+fi
+wait_for_line_count "$LOG_DIR/commands.log" "2" \
+  "all restart must launch replacement backend and frontend processes"
 
 # A detected port conflict must fail before launch and must not create/overwrite PID state.
 rm -f "$LOG_DIR/commands.log" "$BACKEND_PID_FILE" "$FRONTEND_PID_FILE"
