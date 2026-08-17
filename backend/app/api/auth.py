@@ -7,7 +7,11 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import read_auth_settings
 from app.repositories.sessions import create_session_repository
-from app.repositories.users import EmailAlreadyExistsError, create_user_repository
+from app.repositories.users import (
+    DisplayNameAlreadyExistsError,
+    EmailAlreadyExistsError,
+    create_user_repository,
+)
 from app.schemas.auth import ApiError, LoginRequest, PublicUser, SignupRequest
 from app.services.auth import AuthService, InvalidCredentialsError, InvalidSessionError
 
@@ -39,6 +43,14 @@ def signup(request: SignupRequest) -> PublicUser:
             content={
                 "code": "email_already_exists",
                 "message": "이미 사용 중인 이메일이에요.",
+            },
+        )
+    except DisplayNameAlreadyExistsError:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "code": "display_name_already_exists",
+                "message": "이미 사용 중인 표시 이름이에요.",
             },
         )
 

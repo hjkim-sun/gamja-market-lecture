@@ -14,6 +14,10 @@ class EmailAlreadyExistsError(Exception):
     """The database's normalized-email unique constraint was violated."""
 
 
+class DisplayNameAlreadyExistsError(Exception):
+    """The database's display-name unique constraint was violated."""
+
+
 @dataclass(frozen=True, slots=True)
 class AppUser:
     id: UUID
@@ -45,6 +49,7 @@ class InMemoryUserRepository:
 
     def __init__(self) -> None:
         self._users_by_normalized_email: dict[str, AppUser] = {}
+        self._users_by_display_name: dict[str, AppUser] = {}
         self._lock = Lock()
 
     def create(
@@ -59,6 +64,8 @@ class InMemoryUserRepository:
         with self._lock:
             if normalized_email in self._users_by_normalized_email:
                 raise EmailAlreadyExistsError
+            if display_name in self._users_by_display_name:
+                raise DisplayNameAlreadyExistsError
             user = AppUser(
                 id=user_id,
                 email=email,
@@ -68,6 +75,7 @@ class InMemoryUserRepository:
                 created_at=datetime.now().astimezone(),
             )
             self._users_by_normalized_email[normalized_email] = user
+            self._users_by_display_name[display_name] = user
             return user
 
     def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
@@ -115,6 +123,8 @@ class PostgresUserRepository:
                     row = cursor.fetchone()
         except IntegrityError as error:
             if error.sqlstate == "23505":
+                if error.diag.constraint_name == "app_users_display_name_unique":
+                    raise DisplayNameAlreadyExistsError from error
                 raise EmailAlreadyExistsError from error
             raise
 
