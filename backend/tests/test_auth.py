@@ -25,13 +25,14 @@ async def signup_then_login(payload: dict[str, object]):
 
 def test_signup_creates_a_normalized_public_user_without_secret_fields() -> None:
     password = "password123"
+    display_name = f"구매자-{uuid4().hex}"
     response = asyncio.run(
         signup(
             {
                 "email": "  BUYER@EXAMPLE.COM ",
                 "password": password,
                 "password_confirmation": password,
-                "display_name": "  감자 구매자  ",
+                "display_name": f"  {display_name}  ",
             }
         )
     )
@@ -40,7 +41,7 @@ def test_signup_creates_a_normalized_public_user_without_secret_fields() -> None
     body = response.json()
     assert set(body) == {"id", "email", "display_name"}
     assert body["email"] == "buyer@example.com"
-    assert body["display_name"] == "감자 구매자"
+    assert body["display_name"] == display_name
     assert UUID(body["id"])
     assert password not in response.text
     assert not {key for key in body if "password" in key.lower() or "hash" in key.lower()}
@@ -53,7 +54,7 @@ def test_signup_rejects_malformed_email_and_short_password() -> None:
                 "email": "not-an-email",
                 "password": "password123",
                 "password_confirmation": "password123",
-                "display_name": "감자 구매자",
+                "display_name": f"메일-{uuid4().hex}",
             }
         )
     )
@@ -63,7 +64,7 @@ def test_signup_rejects_malformed_email_and_short_password() -> None:
                 "email": "buyer@example.com",
                 "password": "short",
                 "password_confirmation": "short",
-                "display_name": "감자 구매자",
+                "display_name": f"로그인-{uuid4().hex}",
             }
         )
     )
@@ -78,6 +79,8 @@ def test_signup_rejects_malformed_email_and_short_password() -> None:
 
 def test_signup_normalizes_email_before_enforcing_duplicate_address() -> None:
     unique_email = f"duplicate-{uuid4().hex}@example.com"
+    first_display_name = f"이메일-{uuid4().hex}"
+    duplicate_display_name = f"중복메일-{uuid4().hex}"
 
     first = asyncio.run(
         signup(
@@ -85,7 +88,7 @@ def test_signup_normalizes_email_before_enforcing_duplicate_address() -> None:
                 "email": f"  {unique_email.upper()} ",
                 "password": "password123",
                 "password_confirmation": "password123",
-                "display_name": "감자 구매자",
+                "display_name": first_display_name,
             }
         )
     )
@@ -95,7 +98,7 @@ def test_signup_normalizes_email_before_enforcing_duplicate_address() -> None:
                 "email": unique_email,
                 "password": "password123",
                 "password_confirmation": "password123",
-                "display_name": "감자 판매자",
+                "display_name": duplicate_display_name,
             }
         )
     )
@@ -113,13 +116,14 @@ def test_signup_credentials_can_be_used_to_login() -> None:
         "email": f"login-after-signup-{uuid4().hex}@example.com",
         "password": "password123",
     }
+    display_name = f"로그인-{uuid4().hex}"
 
     signup_response, login_response = asyncio.run(
         signup_then_login(
             {
                 **credentials,
                 "password_confirmation": credentials["password"],
-                "display_name": "감자 구매자",
+                "display_name": display_name,
             }
         )
     )
