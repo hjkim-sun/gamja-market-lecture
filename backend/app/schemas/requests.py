@@ -53,6 +53,12 @@ class PurchaseRequestOut(BaseModel):
     created_at: datetime = Field(alias="createdAt")
 
 
+class PurchaseRequestDetailOut(PurchaseRequestOut):
+    """Public detail representation with viewer-specific ownership state."""
+
+    is_owner: bool = Field(alias="isOwner")
+
+
 class ApiError(BaseModel):
     code: str
     message: str

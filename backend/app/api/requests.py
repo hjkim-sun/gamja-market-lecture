@@ -9,7 +9,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.auth import _auth_service
 from app.repositories.requests import create_purchase_request_repository
-from app.schemas.requests import ApiError, CreateRequestInput, PurchaseRequestOut
+from app.schemas.requests import (
+    ApiError,
+    CreateRequestInput,
+    PurchaseRequestDetailOut,
+    PurchaseRequestOut,
+)
 from app.services.auth import InvalidSessionError
 from app.services.requests import PurchaseRequestService
 
@@ -61,10 +66,13 @@ def list_purchase_requests() -> list[PurchaseRequestOut]:
 
 @requests_router.get(
     "/{request_id}",
-    response_model=PurchaseRequestOut,
+    response_model=PurchaseRequestDetailOut,
     responses={status.HTTP_404_NOT_FOUND: {"model": ApiError}},
 )
-def get_purchase_request(request_id: str) -> PurchaseRequestOut | JSONResponse:
+def get_purchase_request(
+    request_id: str,
+    gm_session: str | None = Cookie(default=None),
+) -> PurchaseRequestDetailOut | JSONResponse:
     try:
         parsed_id = UUID(request_id)
     except ValueError:
@@ -73,4 +81,16 @@ def get_purchase_request(request_id: str) -> PurchaseRequestOut | JSONResponse:
     request = _requests_service.get(parsed_id)
     if request is None:
         return _not_found_response()
-    return PurchaseRequestOut.model_validate(request, from_attributes=True)
+
+    try:
+        viewer = _auth_service.me(gm_session)
+    except InvalidSessionError:
+        is_owner = False
+    else:
+        is_owner = viewer.id == request.requester_id
+
+    public_request = PurchaseRequestOut.model_validate(request, from_attributes=True)
+    return PurchaseRequestDetailOut(
+        **public_request.model_dump(),
+        is_owner=is_owner,
+    )
