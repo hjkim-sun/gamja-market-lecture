@@ -12,6 +12,14 @@ async def signup(payload: dict[str, object]):
         return await client.post("/api/auth/signup", json=payload)
 
 
+async def signup_then_login(payload: dict[str, object]):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        signup_response = await client.post("/api/auth/signup", json=payload)
+        login_response = await client.post("/api/auth/login", json=payload)
+        return signup_response, login_response
+
+
 def test_signup_creates_a_normalized_public_user_without_secret_fields() -> None:
     password = "password123"
     response = asyncio.run(signup({"email": "  BUYER@EXAMPLE.COM ", "password": password}))
@@ -49,3 +57,16 @@ def test_signup_normalizes_email_before_enforcing_duplicate_address() -> None:
         "code": "email_already_exists",
         "message": "이미 사용 중인 이메일이에요.",
     }
+
+
+def test_signup_credentials_can_be_used_to_login() -> None:
+    credentials = {
+        "email": f"login-after-signup-{uuid4().hex}@example.com",
+        "password": "password123",
+    }
+
+    signup_response, login_response = asyncio.run(signup_then_login(credentials))
+
+    assert signup_response.status_code == 201
+    assert login_response.status_code == 200
+    assert login_response.json()["email"] == credentials["email"]

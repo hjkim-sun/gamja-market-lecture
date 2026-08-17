@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/features/auth/actions/auth";
-import { createClient } from "@/lib/supabase/client";
 
 type HeaderLink = { href: string; label: string };
 const primaryLinks: HeaderLink[] = [
@@ -29,21 +28,17 @@ export default function Header() {
 
   useEffect(() => {
     let active = true;
-    let subscription: ReturnType<ReturnType<typeof createClient>["auth"]["onAuthStateChange"]>["data"]["subscription"] | undefined;
-    try {
-      const supabase = createClient();
-      void supabase.auth.getSession().then(({ data }) => {
-        if (active) setSignedIn(Boolean(data.session));
-      });
-      subscription = supabase.auth.onAuthStateChange((_event, session) => {
-        if (active) setSignedIn(Boolean(session));
-      }).data.subscription;
-    } catch {
-      // The public catalog stays available before Supabase is configured.
-    }
+    void fetch("/api/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+    }).then((response) => {
+      if (active) setSignedIn(response.ok);
+    }).catch(() => {
+      if (active) setSignedIn(false);
+    });
+
     return () => {
       active = false;
-      subscription?.unsubscribe();
     };
   }, []);
 
@@ -78,6 +73,9 @@ export default function Header() {
     setLoggingOut(true);
     try {
       await signOut();
+      setSignedIn(false);
+      setAccountOpen(false);
+      setMobileOpen(false);
       router.replace("/");
       router.refresh();
     } catch {

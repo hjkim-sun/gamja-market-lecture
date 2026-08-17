@@ -13,6 +13,8 @@ scripts/dev.sh backend start
 
 `scripts/dev.sh backend start`는 백엔드를 시작하기 전에 `backend/.env`를 읽어 해당 프로세스에만 환경 변수를 전달합니다. `DATABASE_URL`은 PostgreSQL에 데이터를 영속화하려면 필요하며, `.env`에는 실제 비밀번호나 운영 자격 증명을 저장소에 넣지 마세요. 로컬 파일은 Git에서 명시적으로 제외되고, 공유할 설정 형식은 `.env.example`에만 유지합니다.
 
+로그인 세션은 기본 7일(`SESSION_TTL_SECONDS=604800`)이며 브라우저에는 `gm_session` HttpOnly 쿠키로만 전달됩니다. 로컬 HTTP 개발에서는 `SESSION_COOKIE_SECURE=false`를 사용하고, `APP_ENV=production` 또는 `VERCEL=1` 환경은 이 값과 무관하게 Secure 쿠키를 강제합니다. 데이터베이스에는 쿠키 원문 대신 SHA-256 해시만 저장됩니다.
+
 서비스를 중지하거나 다시 시작하려면 각각 `scripts/dev.sh backend stop`, `scripts/dev.sh backend restart`를 사용합니다. 자동화 계약 테스트에서만 별도 fixture를 쓰기 위해 `DEV_BACKEND_ENV_FILE`로 읽을 파일을 바꿀 수 있으며, 일반 개발 환경에서는 설정하지 않습니다.
 
 다른 포트가 필요하면 `--port`를 붙입니다. 예를 들어 `uv run python -m app.server --reload --port 8001`처럼 실행합니다. `uvicorn app.main:app --reload` 직접 실행은 안전한 process logging과 포트 점유 오류 기록을 보장하지 않으므로 지원하지 않습니다.

@@ -33,6 +33,10 @@ class UserRepository(Protocol):
         password_hash: str,
     ) -> AppUser: ...
 
+    def get_by_normalized_email(self, normalized_email: str) -> AppUser | None: ...
+
+    def get_by_id(self, user_id: UUID) -> AppUser | None: ...
+
 
 class InMemoryUserRepository:
     """Credential-free fallback used by local development and ASGI contract tests."""
@@ -61,6 +65,17 @@ class InMemoryUserRepository:
             )
             self._users_by_normalized_email[normalized_email] = user
             return user
+
+    def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
+        with self._lock:
+            return self._users_by_normalized_email.get(normalized_email)
+
+    def get_by_id(self, user_id: UUID) -> AppUser | None:
+        with self._lock:
+            return next(
+                (user for user in self._users_by_normalized_email.values() if user.id == user_id),
+                None,
+            )
 
 
 class PostgresUserRepository:
@@ -100,6 +115,35 @@ class PostgresUserRepository:
         if row is None:  # Defensive guard for an unexpected driver/database result.
             raise RuntimeError("The user insert returned no row")
         return AppUser(*row)
+
+    def get_by_normalized_email(self, normalized_email: str) -> AppUser | None:
+        return self._find_one(
+            """
+            select id, email, normalized_email, password_hash, created_at
+            from public.app_users
+            where normalized_email = %s
+            """,
+            (normalized_email,),
+        )
+
+    def get_by_id(self, user_id: UUID) -> AppUser | None:
+        return self._find_one(
+            """
+            select id, email, normalized_email, password_hash, created_at
+            from public.app_users
+            where id = %s
+            """,
+            (user_id,),
+        )
+
+    def _find_one(self, query: str, parameters: tuple[object, ...]) -> AppUser | None:
+        from psycopg import connect
+
+        with connect(self._database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, parameters)
+                row = cursor.fetchone()
+        return AppUser(*row) if row is not None else None
 
 
 def create_user_repository() -> UserRepository:

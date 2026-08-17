@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import os
+import secrets
 
 
 _SCRYPT_N = 2**14
@@ -17,6 +18,7 @@ _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SALT_BYTES = 16
 _DERIVED_KEY_BYTES = 32
+_SESSION_TOKEN_BYTES = 32
 
 
 def hash_password(password: str) -> str:
@@ -62,3 +64,13 @@ def verify_password(password: str, encoded_hash: str) -> bool:
         return False
 
     return hmac.compare_digest(actual_key, expected_key)
+
+
+def generate_session_token() -> str:
+    """Create an opaque browser credential backed by 256 bits of CSPRNG data."""
+    return secrets.token_urlsafe(_SESSION_TOKEN_BYTES)
+
+
+def hash_session_token(token: str) -> str:
+    """Return the one-way session identifier that is safe to persist."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

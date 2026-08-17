@@ -21,15 +21,8 @@ export default function LoginForm({ next }: LoginFormProps) {
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
-  const [unverified, setUnverified] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-
-  async function resend() {
-    const email = emailRef.current?.value.trim();
-    if (email) sessionStorage.setItem("gm-verify-email", email);
-    router.push("/verify-email?resend=1");
-  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,7 +34,6 @@ export default function LoginForm({ next }: LoginFormProps) {
     if (!password) errors.password = "비밀번호를 입력해주세요.";
     if (Object.keys(errors).length) {
       setError("");
-      setUnverified(false);
       setFieldErrors(errors);
       requestAnimationFrame(() => (errors.email ? emailRef.current : passwordRef.current)?.focus());
       return;
@@ -49,17 +41,11 @@ export default function LoginForm({ next }: LoginFormProps) {
 
     setFieldErrors({});
     setError("");
-    setUnverified(false);
     setPending(true);
     try {
       const result = await signIn(formData);
       if (!result.ok) {
-        const message = result.message.toLowerCase();
-        if (message.includes("confirm") || message.includes("verified") || message.includes("인증")) {
-          setUnverified(true);
-        } else {
-          setError("이메일 또는 비밀번호가 올바르지 않아요.");
-        }
+        setError(result.message);
         return;
       }
       router.replace(next);
@@ -72,14 +58,8 @@ export default function LoginForm({ next }: LoginFormProps) {
   }
 
   return (
-    <AuthShell title="다시 만났네요" description="인증한 이메일로 로그인해주세요.">
+    <AuthShell title="다시 만났네요" description="이메일과 비밀번호로 로그인해주세요.">
       {error && <FormAlert tone="error">{error}</FormAlert>}
-      {unverified && (
-        <div className="gm-alert-stack">
-          <FormAlert tone="error">이메일 인증이 아직 완료되지 않았어요. 받은메일함에서 인증 링크를 눌러주세요.</FormAlert>
-          <button type="button" className="gm-secondary-button" onClick={resend}>인증 메일 다시 보내기</button>
-        </div>
-      )}
       <form className="gm-auth-form" onSubmit={submit} noValidate>
         <AuthField name="email" label="이메일" placeholder="name@example.com" error={fieldErrors.email} disabled={pending} autoComplete="email" inputRef={emailRef} />
         <AuthField name="password" label="비밀번호" type="password" placeholder="비밀번호 입력" error={fieldErrors.password} disabled={pending} autoComplete="current-password" inputRef={passwordRef} />

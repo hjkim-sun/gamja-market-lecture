@@ -31,6 +31,10 @@ class SignupRequest(BaseModel):
         return value
 
 
+class LoginRequest(SignupRequest):
+    """Login accepts the same normalized email and verbatim password shape."""
+
+
 class PublicUser(BaseModel):
     id: UUID
     email: str

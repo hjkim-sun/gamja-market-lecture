@@ -9,7 +9,8 @@ npm install
 npm run dev
 ```
 
-기본 개발 주소는 <http://localhost:3000>입니다. Supabase 인증을 사용하려면 `.env.example`을 참고해 `.env.local`을 설정합니다.
+기본 개발 주소는 <http://localhost:3000>입니다. 브라우저의 `/api/auth/*` 요청은
+`BACKEND_API_URL`의 FastAPI로 전달되며, 기본값은 <http://localhost:8000>입니다.
 
 ## 명령어
 
