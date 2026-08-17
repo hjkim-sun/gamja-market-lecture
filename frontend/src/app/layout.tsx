@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
+import { getIsSignedIn } from "@/features/auth/data/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,14 +21,16 @@ export const metadata: Metadata = {
     "구매자가 사고 싶은 물건과 희망 가격을 올리면, 판매자들이 줄을 서는 감자마켓입니다.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const initialSignedIn = await getIsSignedIn();
+
   return (
     <html
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Header />
+        <Header initialSignedIn={initialSignedIn} />
         <main className="flex-1">{children}</main>
         <Footer />
       </body>

@@ -28,8 +28,16 @@ export async function getApplicationsForRequest(requestId: string): Promise<Appl
   return { ok: true, applications: (await response.json()) as OwnerApplication[] };
 }
 
-/** Fetches the signed-in seller's own applications. Returns `[]` on any failure. */
-export async function getMyApplications(): Promise<MyApplication[]> {
+export type MyApplicationsResult =
+  | { ok: true; applications: MyApplication[] }
+  | { ok: false; status: number };
+
+/**
+ * Fetches the signed-in seller's own applications. Surfaces the backend status on
+ * failure so the page can distinguish "not authenticated" (401) from a genuinely
+ * empty list, instead of collapsing every failure into `[]`.
+ */
+export async function getMyApplications(): Promise<MyApplicationsResult> {
   const { cookie, url } = await getSameOriginRequest("/api/applications/mine");
   let response: Response;
   try {
@@ -38,9 +46,9 @@ export async function getMyApplications(): Promise<MyApplication[]> {
       headers: cookie ? { Cookie: cookie } : undefined,
     });
   } catch {
-    return [];
+    return { ok: false, status: 0 };
   }
 
-  if (!response.ok) return [];
-  return (await response.json()) as MyApplication[];
+  if (!response.ok) return { ok: false, status: response.status };
+  return { ok: true, applications: (await response.json()) as MyApplication[] };
 }
