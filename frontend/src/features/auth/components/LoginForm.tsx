@@ -17,6 +17,7 @@ function isValidEmail(email: string) {
 }
 
 export default function LoginForm({ next: _next }: LoginFormProps) {
+  void _next;
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
