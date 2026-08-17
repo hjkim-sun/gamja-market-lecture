@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PurchaseRequest } from "@/types/request";
 
 const mocks = vi.hoisted(() => ({
   getRequestById: vi.fn(),
+  notFound: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 vi.mock("@/features/requests/data/requests-api", () => ({
   getRequestById: mocks.getRequestById,
 }));
@@ -41,6 +43,34 @@ async function renderRequestDetail(viewerRequest: ViewerRequest) {
 type Scenario = [name: string, viewerRequest: ViewerRequest, present: string[], absent: string[]];
 
 describe("/requests/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.notFound.mockImplementation(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    });
+  });
+
+  it("routes a request that the API confirmed as missing to the existing not-found UI", async () => {
+    mocks.getRequestById.mockResolvedValue(null);
+
+    await expect(RequestDetailPage({
+      params: Promise.resolve({ id: request.id }),
+    } as never)).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it("lets a request retrieval failure reach the route load-error boundary instead of the not-found UI", async () => {
+    const loadFailure = new Error("request retrieval failed");
+    mocks.getRequestById.mockRejectedValue(loadFailure);
+
+    await expect(RequestDetailPage({
+      params: Promise.resolve({ id: request.id }),
+    } as never)).rejects.toThrow(loadFailure);
+
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
   it.each<Scenario>([
     [
       "anonymous visitor",

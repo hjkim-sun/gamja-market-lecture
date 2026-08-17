@@ -16,22 +16,20 @@ export async function getRequests(): Promise<PurchaseRequest[]> {
 }
 
 /**
- * Fetches a single purchase request. Returns `null` when it does not exist (404) or on failure.
+ * Fetches a single purchase request. Returns `null` only when the backend confirms the
+ * request does not exist (404). Non-404 error responses and network failures propagate so
+ * the route's load-error boundary can render instead of the not-found UI.
  * Forwards the incoming request's cookies so the backend can identify the authenticated
  * viewer and report whether they own the request.
  */
 export async function getRequestById(id: string): Promise<PurchaseRequest | null> {
   const { cookie, url } = await getSameOriginRequest(`/api/requests/${encodeURIComponent(id)}`);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      cache: "no-store",
-      headers: cookie ? { Cookie: cookie } : undefined,
-    });
-  } catch {
-    return null;
-  }
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: cookie ? { Cookie: cookie } : undefined,
+  });
 
-  if (!response.ok) return null;
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Failed to fetch request ${id}: ${response.status}`);
   return (await response.json()) as PurchaseRequest;
 }
