@@ -16,6 +16,12 @@ function currentPath(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+function extractDisplayName(data: unknown): string | null {
+  if (typeof data !== "object" || data === null || !("display_name" in data)) return null;
+  const value = (data as Record<string, unknown>).display_name;
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 export default function Header({ initialSignedIn = false }: { initialSignedIn?: boolean } = {}) {
   const pathname = usePathname();
   const router = useRouter();
@@ -23,6 +29,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -31,10 +38,29 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
     void fetch("/api/auth/me", {
       credentials: "include",
       cache: "no-store",
-    }).then((response) => {
-      if (active) setSignedIn(response.ok);
+    }).then(async (response) => {
+      if (!response.ok) {
+        if (active) {
+          setSignedIn(false);
+          setDisplayName(null);
+        }
+        return;
+      }
+      let name: string | null = null;
+      try {
+        name = extractDisplayName(await response.json());
+      } catch {
+        name = null;
+      }
+      if (active) {
+        setSignedIn(true);
+        setDisplayName(name);
+      }
     }).catch(() => {
-      if (active) setSignedIn(false);
+      if (active) {
+        setSignedIn(false);
+        setDisplayName(null);
+      }
     });
 
     return () => {
@@ -74,6 +100,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
     try {
       await signOut();
       setSignedIn(false);
+      setDisplayName(null);
       setAccountOpen(false);
       setMobileOpen(false);
       router.replace("/");
@@ -119,7 +146,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
               >
                 채팅
               </Link>
-              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>내 계정</button>
+              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>{displayName ?? "내 계정"}</button>
               {accountOpen && (
                 <div className="gm-account-menu">
                   <Link href="/requests/mine" onClick={() => { setMobileOpen(false); setAccountOpen(false); }}>내 구매 요청</Link>
@@ -163,7 +190,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
                   >
                     채팅
                   </Link>
-                  <span className="gm-mobile-account">내 계정</span>
+                  <span className="gm-mobile-account">{displayName ?? "내 계정"}</span>
                   <Link href="/requests/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/requests/mine") ? "page" : undefined}>내 구매 요청</Link>
                   <Link href="/applications/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/applications/mine") ? "page" : undefined}>내 판매 신청</Link>
                   <button type="button" className="gm-mobile-logout" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>
