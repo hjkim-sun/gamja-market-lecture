@@ -26,6 +26,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
   const pathname = usePathname();
   const router = useRouter();
   const [signedIn, setSignedIn] = useState(initialSignedIn);
+  const [email, setEmail] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -42,23 +43,30 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
       if (!response.ok) {
         if (active) {
           setSignedIn(false);
+          setEmail(null);
           setDisplayName(null);
         }
         return;
       }
-      let name: string | null = null;
       try {
-        name = extractDisplayName(await response.json());
-      } catch {
-        name = null;
-      }
-      if (active) {
+        const data: unknown = await response.json();
+        if (!active) return;
         setSignedIn(true);
-        setDisplayName(name);
+        setEmail(typeof data === "object" && data !== null && typeof (data as Record<string, unknown>).email === "string"
+          ? (data as Record<string, string>).email
+          : null);
+        setDisplayName(extractDisplayName(data));
+      } catch {
+        if (active) {
+          setSignedIn(false);
+          setEmail(null);
+          setDisplayName(null);
+        }
       }
     }).catch(() => {
       if (active) {
         setSignedIn(false);
+        setEmail(null);
         setDisplayName(null);
       }
     });
@@ -100,6 +108,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
     try {
       await signOut();
       setSignedIn(false);
+      setEmail(null);
       setDisplayName(null);
       setAccountOpen(false);
       setMobileOpen(false);
@@ -146,7 +155,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
               >
                 채팅
               </Link>
-              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>{displayName ?? "내 계정"}</button>
+              <button className="gm-account-button" type="button" aria-label="내 계정 메뉴 열기" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>{displayName ?? (email ? `안녕하세요, ${email}님` : "내 계정")}</button>
               {accountOpen && (
                 <div className="gm-account-menu">
                   <Link href="/requests/mine" onClick={() => { setMobileOpen(false); setAccountOpen(false); }}>내 구매 요청</Link>
@@ -190,7 +199,7 @@ export default function Header({ initialSignedIn = false }: { initialSignedIn?: 
                   >
                     채팅
                   </Link>
-                  <span className="gm-mobile-account">{displayName ?? "내 계정"}</span>
+                  <span className="gm-mobile-account">{displayName ?? (email ? `안녕하세요, ${email}님` : "내 계정")}</span>
                   <Link href="/requests/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/requests/mine") ? "page" : undefined}>내 구매 요청</Link>
                   <Link href="/applications/mine" onClick={() => setMobileOpen(false)} className="gm-mobile-link" aria-current={currentPath(pathname, "/applications/mine") ? "page" : undefined}>내 판매 신청</Link>
                   <button type="button" className="gm-mobile-logout" onClick={handleSignOut} disabled={loggingOut}>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</button>

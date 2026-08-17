@@ -16,7 +16,8 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-export default function LoginForm({ next }: LoginFormProps) {
+export default function LoginForm({ next: _next }: LoginFormProps) {
+  void _next;
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -48,7 +49,7 @@ export default function LoginForm({ next }: LoginFormProps) {
         setError(result.message);
         return;
       }
-      router.replace(next);
+      router.replace("/requests");
       router.refresh();
     } catch {
       setError("로그인하지 못했어요. 잠시 후 다시 시도해주세요.");

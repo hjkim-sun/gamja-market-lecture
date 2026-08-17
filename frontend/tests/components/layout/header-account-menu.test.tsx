@@ -73,12 +73,14 @@ function findElementsWithText(node: unknown, label: string): ElementLike[] {
   return matches;
 }
 
-function renderHeader(state: boolean[]) {
+function renderHeader(state: unknown[]) {
   let hookIndex = 0;
-  mocks.useState.mockImplementation((initial: boolean) => {
+  mocks.useState.mockImplementation((initial: unknown) => {
     const index = hookIndex++;
-    return [state[index] ?? initial, (next: boolean | ((current: boolean) => boolean)) => {
-      state[index] = typeof next === "function" ? next(state[index] ?? initial) : next;
+    return [state[index] ?? initial, (next: unknown) => {
+      state[index] = typeof next === "function"
+        ? (next as (current: unknown) => unknown)(state[index] ?? initial)
+        : next;
     }];
   });
   return Header();
@@ -92,7 +94,7 @@ describe("Header account menu", () => {
   });
 
   it("shows exactly the two account links before logout after a signed-in user opens the desktop account control", () => {
-    const state = [true, false, false, false];
+    const state = [true, null, false, false, false, null];
     let header = renderHeader(state);
 
     const accountButton = findElementsWithText(header, "내 계정").find((element) => typeof element.props?.onClick === "function");
@@ -112,14 +114,14 @@ describe("Header account menu", () => {
   });
 
   it("does not render either account link anywhere for a signed-out user", () => {
-    const header = renderHeader([false, true, false, false]);
+    const header = renderHeader([false, null, true, false, false, null]);
 
     expect(findElementsWithText(header, "내 구매 요청")).toHaveLength(0);
     expect(findElementsWithText(header, "내 판매 신청")).toHaveLength(0);
   });
 
   it("places the same account links between the mobile account label and logout only for signed-in users", () => {
-    const signedInHeader = renderHeader([true, true, false, false]);
+    const signedInHeader = renderHeader([true, null, true, false, false, null]);
     const mobileNav = findElement(signedInHeader, (element) => element.props?.className === "gm-mobile-nav");
     const mobileEntries = navigationItems(childrenOf(mobileNav)).filter(isElement).map(textContent);
     const accountIndex = mobileEntries.indexOf("내 계정");
@@ -127,7 +129,7 @@ describe("Header account menu", () => {
 
     expect(mobileEntries.slice(accountIndex + 1, logoutIndex)).toEqual(["내 구매 요청", "내 판매 신청"]);
 
-    const signedOutHeader = renderHeader([false, true, false, false]);
+    const signedOutHeader = renderHeader([false, null, true, false, false, null]);
     expect(findElementsWithText(signedOutHeader, "내 구매 요청")).toHaveLength(0);
     expect(findElementsWithText(signedOutHeader, "내 판매 신청")).toHaveLength(0);
   });

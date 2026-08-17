@@ -59,12 +59,25 @@ function findElementByClassName(node: unknown, className: string): ElementLike |
 }
 
 describe("Header auth state", () => {
+  let hookIndex = 0;
+  let hookValues: unknown[] = [];
+
   beforeEach(() => {
     mocks.createClient.mockReset();
     mocks.useEffect.mockReset();
     mocks.useState.mockReset();
+    hookIndex = 0;
+    hookValues = [];
     mocks.useEffect.mockImplementation((effect: () => unknown) => effect());
-    mocks.useState.mockImplementation((initial: unknown) => [initial, vi.fn()]);
+    mocks.useState.mockImplementation((initial: unknown) => {
+      const index = hookIndex++;
+      if (!(index in hookValues)) hookValues[index] = initial;
+      return [hookValues[index], (value: unknown) => {
+        hookValues[index] = typeof value === "function"
+          ? (value as (previous: unknown) => unknown)(hookValues[index])
+          : value;
+      }];
+    });
     mocks.createClient.mockReturnValue({
       auth: {
         getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
@@ -79,6 +92,11 @@ describe("Header auth state", () => {
     vi.unstubAllGlobals();
   });
 
+  function renderHeader() {
+    hookIndex = 0;
+    return Header();
+  }
+
   it("reads the current session from the same-origin me API with cookies", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: "e2f21c1d-1aa7-49c3-a365-d33ae5f8a1c8", email: "buyer@example.com" }), {
@@ -88,7 +106,7 @@ describe("Header auth state", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    Header();
+    renderHeader();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({
       credentials: "include",
@@ -139,10 +157,10 @@ describe("Header auth state", () => {
     await flushMicrotasks();
 
     let header = renderHeader();
-    expect(state[4]).toBe("감자 구매자");
+    expect(state[5]).toBe("감자 구매자");
     expect(textContent(findElementByClassName(header, "gm-account-button"))).toBe("감자 구매자");
 
-    state[1] = true; // open the mobile drawer to reveal the mobile account label
+    state[2] = true; // open the mobile drawer to reveal the mobile account label
     header = renderHeader();
     expect(textContent(findElementByClassName(header, "gm-mobile-account"))).toBe("감자 구매자");
   });
@@ -150,7 +168,6 @@ describe("Header auth state", () => {
   it("falls back to the default account label when the me response has no display_name", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: "e2f21c1d-1aa7-49c3-a365-d33ae5f8a1c8",
-      email: "buyer@example.com",
     }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -161,7 +178,7 @@ describe("Header auth state", () => {
     await flushMicrotasks();
 
     const header = renderHeader();
-    expect(state[4]).toBeNull();
+    expect(state[5]).toBeNull();
     expect(textContent(findElementByClassName(header, "gm-account-button"))).toBe("내 계정");
   });
 
@@ -169,12 +186,12 @@ describe("Header auth state", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
     const { renderHeader, state } = createStatefulRenderer();
-    state[4] = "감자 구매자";
+    state[5] = "감자 구매자";
     renderHeader();
     await flushMicrotasks();
 
     expect(state[0]).toBe(false);
-    expect(state[4]).toBeNull();
+    expect(state[5]).toBeNull();
   });
 
   it("clears the retained display name on logout", async () => {
@@ -190,9 +207,9 @@ describe("Header auth state", () => {
     const { renderHeader, state } = createStatefulRenderer();
     renderHeader();
     await flushMicrotasks();
-    state[1] = true; // open the mobile drawer to reach the mobile logout button
+    state[2] = true; // open the mobile drawer to reach the mobile logout button
     let header = renderHeader();
-    expect(state[4]).toBe("감자 구매자");
+    expect(state[5]).toBe("감자 구매자");
 
     const logoutButton = findElementByClassName(header, "gm-mobile-logout") as {
       props?: { onClick?: () => Promise<void> };
@@ -200,6 +217,22 @@ describe("Header auth state", () => {
     await logoutButton.props?.onClick?.();
 
     header = renderHeader();
-    expect(state[4]).toBeNull();
+    expect(state[5]).toBeNull();
+  });
+
+  it("uses the email greeting when the me response has no display_name", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "e2f21c1d-1aa7-49c3-a365-d33ae5f8a1c8",
+      email: "buyer@example.com",
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })));
+
+    const { renderHeader } = createStatefulRenderer();
+    renderHeader();
+    await flushMicrotasks();
+
+    expect(textContent(findElementByClassName(renderHeader(), "gm-account-button"))).toBe("안녕하세요, buyer@example.com님");
   });
 });
