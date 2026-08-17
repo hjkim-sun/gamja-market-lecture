@@ -3,7 +3,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE_DIR="${DEV_STATE_DIR:-$ROOT_DIR/.runtime/dev}"
+if [[ -n "${DEV_STATE_DIR:-}" ]]; then
+  STATE_DIR="$DEV_STATE_DIR"
+else
+  GIT_COMMON_DIR="$(git -C "$ROOT_DIR" rev-parse --path-format=absolute --git-common-dir)"
+  REPOSITORY_ROOT="$(dirname "$GIT_COMMON_DIR")"
+  STATE_DIR="$REPOSITORY_ROOT/.runtime/dev"
+fi
 LOG_DIR="$STATE_DIR/logs"
 
 usage() {
