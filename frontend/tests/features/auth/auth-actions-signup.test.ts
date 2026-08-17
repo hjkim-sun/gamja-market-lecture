@@ -91,6 +91,28 @@ describe("signUp", () => {
     });
   });
 
+  it("surfaces a duplicate display-name response as the specified message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: "display_name_already_exists", message: "이미 사용 중인 표시 이름이에요." }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(signUp(signUpForm({
+      email: "buyer@example.com",
+      password: "password123",
+      passwordConfirmation: "password123",
+      displayName: "감자 구매자",
+    }))).resolves.toMatchObject({
+      ok: false,
+      message: "이미 사용 중인 표시 이름이에요.",
+    });
+  });
+
   it("rejects an unsafe host header instead of fetching an arbitrary origin", async () => {
     mocks.headers.mockResolvedValue(new Headers({
       host: "gamja.example@127.0.0.1",

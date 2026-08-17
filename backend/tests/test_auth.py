@@ -172,8 +172,8 @@ def test_signup_rejects_blank_or_too_long_display_name() -> None:
         assert response.json()["code"] == "invalid_input"
 
 
-def test_signup_allows_duplicate_display_names() -> None:
-    display_name = "같은 감자"
+def test_signup_rejects_duplicate_display_names() -> None:
+    display_name = f"같은 감자-{uuid4().hex}"
     first = asyncio.run(
         signup(
             {
@@ -196,4 +196,8 @@ def test_signup_allows_duplicate_display_names() -> None:
     )
 
     assert first.status_code == 201
-    assert second.status_code == 201
+    assert second.status_code == 409
+    assert second.json() == {
+        "code": "display_name_already_exists",
+        "message": "이미 사용 중인 표시 이름이에요.",
+    }
