@@ -27,10 +27,15 @@ async def authenticated_client() -> AsyncClient:
     credentials = {
         "email": f"requester-{uuid4().hex}@example.com",
         "password": "password123",
+        "password_confirmation": "password123",
+        "display_name": "구매요청 작성자",
     }
     signup_response = await client.post("/api/auth/signup", json=credentials)
     assert signup_response.status_code == 201
-    login_response = await client.post("/api/auth/login", json=credentials)
+    login_response = await client.post(
+        "/api/auth/login",
+        json={"email": credentials["email"], "password": credentials["password"]},
+    )
     assert login_response.status_code == 200
     return client
 
